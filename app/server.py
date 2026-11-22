@@ -224,6 +224,15 @@ def gdrive_get_valid_token(cfg):
     if not tokens:
         raise ValueError("Google Drive is not connected. Please authenticate in Settings.")
 
+    target_folder = cfg["gdrive"].get("target_folder", "appDataFolder")
+    if target_folder in ("MyDrive", "root"):
+        token_scopes = tokens.get("scope", "")
+        if "drive.file" not in token_scopes and "https://www.googleapis.com/auth/drive" not in token_scopes:
+            raise ValueError(
+                "Google Account needs 'drive.file' scope for My Drive. "
+                "Please click 'Connect with Google' again in Settings, or change Target Folder back to 'appDataFolder'."
+            )
+
     client_id = cfg["gdrive"]["client_id"]
     client_secret = cfg["gdrive"]["client_secret"]
 
@@ -526,6 +535,9 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
                     "timestamp": cfg["gdrive"]["last_sync"],
                     "message": f"Successfully synced vault to Google Drive ({action})"
                 })
+            except ValueError as ve:
+                print(f"[OtterVault] Sync notice: {ve}")
+                self._send_json({"error": str(ve)}, 400)
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="ignore")
                 try:
