@@ -226,11 +226,12 @@ def gdrive_get_valid_token(cfg):
 
     target_folder = cfg["gdrive"].get("target_folder", "appDataFolder")
     if target_folder in ("MyDrive", "root"):
-        token_scopes = tokens.get("scope", "")
-        if "drive.file" not in token_scopes and "https://www.googleapis.com/auth/drive" not in token_scopes:
+        token_scopes = tokens.get("scope", "").split()
+        has_drive_scope = any(s in ("https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file") for s in token_scopes)
+        if not has_drive_scope:
             raise ValueError(
                 "Google Account needs 'drive.file' scope for My Drive. "
-                "Please click 'Connect with Google' again in Settings, or change Target Folder back to 'appDataFolder'."
+                "Please click 'Re-connect' in Settings to grant Drive access, or change Target Folder back to 'appDataFolder'."
             )
 
     client_id = cfg["gdrive"]["client_id"]
@@ -244,7 +245,7 @@ def gdrive_get_valid_token(cfg):
 def gdrive_find_vault_file(token, target_folder="appDataFolder"):
     if target_folder in ("MyDrive", "root"):
         spaces = "drive"
-        q = urllib.parse.quote("name = 'otter-vault.enc' and trashed = false and 'root' in parents")
+        q = urllib.parse.quote("name = 'otter-vault.enc' and trashed = false")
     else:
         spaces = "appDataFolder"
         q = urllib.parse.quote("name = 'otter-vault.enc' and trashed = false")
@@ -426,13 +427,16 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
         if url.path == "/api/config":
             cfg = load_config()
             tokens = load_tokens()
+            token_scopes = tokens.get("scope", "").split() if tokens else []
             cfg["gdrive"]["connected"] = bool(tokens and tokens.get("access_token"))
+            cfg["gdrive"]["has_drive_scope"] = any(s in ("https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file") for s in token_scopes)
             self._send_json(cfg)
 
         elif url.path == "/api/vault/status":
             cfg = load_config()
             vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
             tokens = load_tokens()
+            token_scopes = tokens.get("scope", "").split() if tokens else []
             exists = vault_path.exists()
             status = {
                 "exists": exists,
@@ -440,6 +444,7 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
                 "unlocked": current_session["unlocked"],
                 "gdrive_connected": bool(tokens and tokens.get("access_token")),
                 "gdrive_email": cfg["gdrive"].get("account_email"),
+                "has_drive_scope": any(s in ("https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file") for s in token_scopes),
                 "last_sync": cfg["gdrive"].get("last_sync")
             }
             if exists:
@@ -545,8 +550,10 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
                     msg = err_json.get("error", {}).get("message", err_body)
                 except Exception:
                     msg = err_body or str(e)
+                if "granted scopes" in msg.lower() or "spaces" in msg.lower():
+                    msg = "Google Account needs updated permissions for My Drive. Please click 'Re-connect' in Settings to grant Drive file access."
                 print(f"[OtterVault] Google Drive API Error ({e.code}): {msg}")
-                self._send_json({"error": msg}, 500)
+                self._send_json({"error": msg}, 403 if e.code == 403 else 500)
             except Exception as e:
                 print(f"[OtterVault] Sync Exception: {str(e)}")
                 self._send_json({"error": f"Google Drive sync failed: {str(e)}"}, 500)

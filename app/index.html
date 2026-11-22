@@ -1120,13 +1120,25 @@
       const pillText = document.getElementById('gdriveStatusText');
 
       if (cfg.gdrive.connected) {
+        const needsScope = (cfg.gdrive.target_folder === 'MyDrive' || cfg.gdrive.target_folder === 'root') && !cfg.gdrive.has_drive_scope;
         if (titleEl) {
-          titleEl.textContent = "Google Drive Account: Connected";
-          titleEl.style.color = "var(--accent)";
+          titleEl.innerHTML = needsScope
+            ? `Google Drive Account: Connected <span style="font-size:11px;background:#f38ba8;color:#11111b;padding:2px 7px;border-radius:4px;margin-left:6px;font-weight:700;">Needs My Drive Permission</span>`
+            : "Google Drive Account: Connected";
+          titleEl.style.color = needsScope ? "#f38ba8" : "var(--accent)";
         }
-        if (subEl) subEl.textContent = `Connected as: ${cfg.gdrive.account_email || 'Authorized User'}`;
-        if (actionEl) actionEl.innerHTML = `<button class="btn-field-action" style="color:var(--danger);" onclick="disconnectGoogle()">Disconnect</button>`;
-        if (pillText) pillText.textContent = "Drive: Connected";
+        if (subEl) {
+          subEl.innerHTML = needsScope
+            ? `Connected as: <strong>${cfg.gdrive.account_email || 'Authorized User'}</strong><br><span style="color:#f9e2af;font-size:12px;">⚠️ Target is set to My Drive, but this login lacks My Drive file permission. Click <strong>Re-connect</strong> to authorize.</span>`
+            : `Connected as: <strong>${cfg.gdrive.account_email || 'Authorized User'}</strong>`;
+        }
+        if (actionEl) {
+          actionEl.innerHTML = `
+            <button class="btn-field-action" onclick="startGoogleOAuth()">Re-connect</button>
+            <button class="btn-field-action" style="color:var(--danger);margin-left:6px;" onclick="disconnectGoogle()">Disconnect</button>
+          `;
+        }
+        if (pillText) pillText.textContent = needsScope ? "Drive: Scope Needed" : "Drive: Connected";
       } else {
         if (titleEl) {
           titleEl.textContent = "Google Drive Account: Not Connected";
