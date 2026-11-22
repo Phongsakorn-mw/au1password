@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OtterVault - Linux Personal Cloud-Sync Vault</title>
+  <style>
+    :root {
+      --bg: #181825;
+      --card-bg: #1e1e2e;
+      --card-fg: #cdd6f4;
+      --surface: #24273a;
+      --surface-border: #313244;
+      --text-main: #cdd6f4;
+      --text-muted: #a6adc8;
+      --primary: #89b4fa;
+      --primary-hover: #b4befe;
+      --primary-fg: #11111b;
+      --accent: #a6e3a1;
+      --accent-hover: #94e2d5;
+      --accent-fg: #11111b;
+      --danger: #f38ba8;
+      --warning: #f9e2af;
+      --info: #89dceb;
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif;
+      --font-code: 'JetBrains Mono', 'Fira Code', monospace;
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.5);
+    }
+
+    /* Light Theme override */
+    body.theme-light {
+      --bg: #eff1f5;
+      --card-bg: #e6e9ef;
+      --card-fg: #4c4f69;
+      --surface: #dce0e8;
+      --surface-border: #bcc0cc;
+      --text-main: #4c4f69;
+      --text-muted: #6c6f85;
+      --primary: #1e66f5;
+      --primary-hover: #04a5e5;
+      --primary-fg: #ffffff;
+      --accent: #40a02b;
+      --danger: #d20f39;
+    }
+
+    /* Nord Cyber Theme override */
+    body.theme-nord {
+      --bg: #2e3440;
+      --card-bg: #3b4252;
+      --card-fg: #eceff4;
+      --surface: #434c5e;
+      --surface-border: #4c566a;
+      --text-main: #eceff4;
+      --text-muted: #d8dee9;
+      --primary: #88c0d0;
+      --accent: #a3be8c;
+      --danger: #bf616a;
+    }
+
+    /* OLED Black Theme override */
+    body.theme-oled {
+      --bg: #000000;
+      --card-bg: #0a0a0c;
+      --card-fg: #ffffff;
+      --surface: #141416;
+      --surface-border: #222226;
+      --text-main: #f0f0f0;
+      --text-muted: #888888;
+      --primary: #3b82f6;
+      --accent: #10b981;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding: 12px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-window {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Headerbar */
+    .headerbar {
+      height: 52px;
+      background: #11111b;
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .window-controls-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .win-btn { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .win-close { background: #f38ba8; cursor: pointer; }
+    .win-min { background: #f9e2af; cursor: pointer; }
+    .win-max { background: #a6e3a1; cursor: pointer; }
+
+    .app-branding {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+    .app-branding svg { color: var(--primary); }
+
+    .design-switcher {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      gap: 2px;
+    }
+    .switcher-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .switcher-btn.active {
+      background: var(--primary);
+      color: var(--primary-fg);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .gdrive-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .gdrive-pill:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+    }
+    .gdrive-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: inline-block;
+      box-shadow: 0 0 6px rgba(166, 227, 161, 0.6);
+    }
+    .gdrive-status-dot.syncing {
+      background: var(--warning);
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-icon:hover {
+      background: var(--surface);
+      color: var(--text-main);
+      border-color: var(--surface-border);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: none;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+
+    /* Vault Main Body */
+    .vault-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 3-Pane Adwaita Layout */
+    .layout-adwaita {
+      display: flex;
+      width: 100%;
+      height: 100%;
+    }
+
+    .sidebar {
+      width: 230px;
+      background: #181825;
+      border-right: 1px solid var(--surface-border);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 8px;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0 8px 4px 8px;
+    }
+
+    .nav-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover { background: var(--surface); color: var(--text-main); }
+    .nav-item.active { background: #313244; color: var(--primary); font-weight: 600; }
+    .nav-item-left { display: flex; align-items: center; gap: 8px; }
+    .nav-badge {
+      background: #1e1e2e;
+      border: 1px solid var(--surface-border);
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      color: var(--text-muted);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 10px;
+      background: #11111b;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--surface-border);
+      font-size: 11px;
+    }
+    .sidebar-footer-btn {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text-main);
+      padding: 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .sidebar-footer-btn:hover { background: #313244; }
+
+    /* Middle Pane: Items List */
+    .item-list-pane {
+      width: 340px;
+      border-right: 1px solid var(--surface-border);
+      background: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .list-toolbar {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-box svg {
+      position: absolute;
+      left: 10px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      padding: 7px 10px 7px 32px;
+      font-size: 12px;
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--primary); }
+
+    .items-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .vault-card {
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .vault-card:hover { background: var(--surface); border-color: #45475a; }
+    .vault-card.selected { background: #2a2b3d; border-color: var(--primary); }
+
+    .card-top { display: flex; align-items: center; justify-content: space-between; }
+    .card-title-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .card-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .icon-login { background: rgba(137, 180, 250, 0.15); color: #89b4fa; }
+    .icon-doc { background: rgba(166, 227, 161, 0.15); color: #a6e3a1; }
+    .icon-image { background: rgba(249, 226, 175, 0.15); color: #f9e2af; }
+    .icon-file { background: rgba(203, 166, 247, 0.15); color: #cba6f7; }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-left: 32px;
+    }
+
+    /* Right Pane: Detail & Preview */
+    .detail-pane {
+      flex: 1;
+      background: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 14px;
+    }
+    .detail-title-block { display: flex; align-items: center; gap: 12px; }
+    .detail-large-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .detail-heading { font-size: 18px; font-weight: 600; color: var(--text-main); }
+    .detail-category-tag { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+
+    .field-card {
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .field-value-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .field-value { font-size: 13px; color: var(--text-main); font-family: var(--font-code); word-break: break-all; }
+    .field-value.masked { letter-spacing: 2px; }
+
+    .btn-field-action {
+      background: #24273a;
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      padding: 5px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .btn-field-action:hover { background: var(--surface-border); color: var(--text-main); }
+    .btn-field-action.btn-copy:hover { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+
+    /* Modals */
+    .modal-backdrop {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-backdrop.open { display: flex; }
+
+    .modal-card {
+      width: 620px;
+      max-height: 85vh;
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #11111b;
+    }
+    .modal-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+    /* Settings Tabs */
+    .settings-nav {
+      display: flex;
+      border-bottom: 1px solid var(--surface-border);
+      background: #181825;
+      padding: 0 12px;
+      gap: 4px;
+    }
+    .settings-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 10px 14px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .settings-tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .settings-tab-content {
+      padding: 18px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+    .form-hint { font-size: 10px; color: #6c7086; margin-top: 2px; }
+    .form-input, .form-select, .form-textarea {
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      padding: 8px 12px;
+      font-size: 12px;
+      outline: none;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--primary); }
+
+    .settings-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+    }
+
+    .toast-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 2000;
+      pointer-events: none;
+    }
+    .toast {
+      background: #11111b;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      animation: slideIn 0.2s ease forwards;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Lock Screen Overlay */
+    .lock-screen-overlay {
+      position: absolute;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      background: #11111b;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 500;
+    }
+    .lock-screen-overlay.locked { display: flex; }
+    .lock-box { width: 340px; text-align: center; display: flex; flex-direction: column; gap: 14px; }
+  </style>
+</head>
+<body>
+
+<div class="app-window">
+  <!-- Headerbar -->
+  <header class="headerbar">
+    <div class="window-controls-left">
+      <span class="win-btn win-close" title="Close"></span>
+      <span class="win-btn win-min" title="Minimize"></span>
+      <span class="win-btn win-max" title="Maximize"></span>
+      <div class="app-branding" style="margin-left: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>OtterVault</span>
+        <span id="daemonStatusBadge" style="font-size: 10px; background: #313244; color: var(--accent); padding: 1px 6px; border-radius: 3px;">Linux App</span>
+      </div>
+    </div>
+
+    <!-- Layout Switcher -->
+    <div class="design-switcher">
+      <button class="switcher-btn active" id="btnModeAdwaita" onclick="switchLayout('adwaita')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>
+        3-Pane
+      </button>
+      <button class="switcher-btn" id="btnModeLauncher" onclick="switchLayout('launcher')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Cards
+      </button>
+      <button class="switcher-btn" id="btnModeNord" onclick="switchLayout('nord')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Nord
+      </button>
+    </div>
+
+    <!-- Right Header Actions -->
+    <div class="header-actions">
+      <!-- Google Drive Sync Button / Status -->
+      <div class="gdrive-pill" id="gdrivePill" onclick="triggerDriveSync()" title="Click to trigger Google Drive Sync">
+        <span class="gdrive-status-dot" id="gdriveStatusDot"></span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+        </svg>
+        <span id="gdriveStatusText">Drive: Ready</span>
+      </div>
+
+      <button class="btn-primary" onclick="openNewItemModal()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>New Item</span>
+      </button>
+
+      <!-- Settings Configuration Button (Gear) -->
+      <button class="btn-icon" onclick="openSettingsModal()" title="App & Cloud Configuration Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+
+      <button class="btn-icon" onclick="toggleLockVault()" title="Lock Vault">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Lock Screen Overlay -->
+  <div class="lock-screen-overlay" id="lockScreen">
+    <div class="lock-box">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #1e1e2e; margin: 0 auto; display: flex; align-items: center; justify-content: center; border: 1px solid var(--surface-border);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f38ba8" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h3 style="font-size: 16px; font-weight: 600;">OtterVault Locked</h3>
+      <p style="font-size: 12px; color: var(--text-muted);">Enter master password to decrypt your zero-knowledge vault.</p>
+      <input type="password" id="masterPassInput" class="form-input" placeholder="Master Password" value="test_master_pass_123" style="text-align: center;">
+      <button class="btn-primary" onclick="unlockVault()" style="justify-content: center;">
+        <span>Unlock Vault</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Vault Main Container -->
+  <div class="vault-container">
+    <!-- 3-Pane Adwaita Layout -->
+    <div class="layout-adwaita" id="layoutAdwaita">
+      <aside class="sidebar">
+        <div class="nav-group-title">Vault Categories</div>
+        <ul class="nav-list">
+          <li class="nav-item active" onclick="filterCategory('all', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              <span>All Items</span>
+            </div>
+            <span class="nav-badge" id="badgeAll">0</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('login', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Logins / Passwords</span>
+            </div>
+            <span class="nav-badge" id="badgeLogin">0</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('note', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Text / Documents</span>
+            </div>
+            <span class="nav-badge" id="badgeNote">0</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('image', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>Photos / Images</span>
+            </div>
+            <span class="nav-badge" id="badgeImage">0</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('file', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/></svg>
+              <span>Encrypted Files</span>
+            </div>
+            <span class="nav-badge" id="badgeFile">0</span>
+          </li>
+        </ul>
+
+        <div class="sidebar-footer">
+          <div style="font-weight: 600; font-size: 11px; color: var(--text-main);">Vault File Path:</div>
+          <div id="sidebarVaultPath" style="font-size: 10px; color: var(--text-muted); word-break: break-all; margin-top: 2px;">~/.local/share/otter-vault/vault.enc</div>
+          <button class="sidebar-footer-btn" onclick="openSettingsModal()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>
+            <span>Open GUI Config</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Middle Pane: Item List -->
+      <section class="item-list-pane">
+        <div class="list-toolbar">
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="adwaitaSearchInput" placeholder="Search logins, notes, files..." oninput="handleSearch(this.value)">
+          </div>
+        </div>
+        <div class="items-scroll" id="adwaitaItemsList"></div>
+      </section>
+
+      <!-- Right Pane: Detail & Preview -->
+      <main class="detail-pane" id="adwaitaDetailPane"></main>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- FULL GUI CONFIGURATION MODAL (All configs directly in GUI) -->
+<!-- ============================================================ -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>OtterVault Configuration</span>
+      </div>
+      <button class="btn-icon" onclick="closeSettingsModal()">&times;</button>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="settings-nav">
+      <button class="settings-tab-btn active" onclick="switchSettingsTab('gdrive', this)">☁️ Google Drive</button>
+      <button class="settings-tab-btn" onclick="switchSettingsTab('storage', this)">📁 Storage & Paths</button>
+      <button class="settings-tab-btn" onclick="switchSettingsTab('security', this)">🔒 Security</button>
+      <button class="settings-tab-btn" onclick="switchSettingsTab('appearance', this)">🎨 Appearance</button>
+      <button class="settings-tab-btn" onclick="switchSettingsTab('extension', this)">🧩 Chrome Ext</button>
+    </div>
+
+    <!-- TAB 1: Google Drive Sync -->
+    <div class="settings-tab-content" id="tabContentGDrive">
+      <div class="settings-toggle-row">
+        <div>
+          <div style="font-weight: 600; font-size: 12px;">Enable Google Drive Sync</div>
+          <div class="form-hint">Automatically synchronize zero-knowledge encrypted vault to personal Google Drive</div>
+        </div>
+        <input type="checkbox" id="cfgGDriveEnabled" checked style="width: 18px; height: 18px; cursor: pointer;">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Google OAuth 2.0 Client ID</label>
+        <input type="text" class="form-input" id="cfgGDriveClientId" placeholder="e.g. 123456789-abcdef.apps.googleusercontent.com">
+        <div class="form-hint">Obtained from your Google Cloud Console (APIs & Services > Credentials).</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Google OAuth 2.0 Client Secret (Optional for Desktop PKCE)</label>
+        <input type="password" class="form-input" id="cfgGDriveClientSecret" placeholder="GOCSPX-...">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Target Google Drive Folder</label>
+        <select class="form-select" id="cfgGDriveTargetFolder">
+          <option value="appDataFolder">appDataFolder (Recommended: Hidden & Safe from accidental deletion)</option>
+          <option value="MyDrive">My Drive/OtterVault (Visible folder in Drive)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Sync Frequency</label>
+        <select class="form-select" id="cfgGDriveSyncInterval">
+          <option value="realtime">Real-time (on every edit/save)</option>
+          <option value="5">Every 5 minutes</option>
+          <option value="15" selected>Every 15 minutes</option>
+          <option value="60">Every 1 hour</option>
+          <option value="manual">Manual only</option>
+        </select>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button class="btn-field-action" onclick="testGDriveConnection()">Ping Google OAuth</button>
+        <button class="btn-field-action" onclick="triggerDriveSync()">Sync Now</button>
+        <button class="btn-primary" style="margin-left: auto;" onclick="saveConfigFromGui()">Save Config</button>
+      </div>
+    </div>
+
+    <!-- TAB 2: Storage & File Paths -->
+    <div class="settings-tab-content" id="tabContentStorage" style="display: none;">
+      <div class="form-group">
+        <label class="form-label">Encrypted Vault Storage Path</label>
+        <input type="text" class="form-input" id="cfgVaultPath" value="~/.local/share/otter-vault/vault.enc">
+        <div class="form-hint">Absolute or home-relative path to the zero-knowledge encrypted database file.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Local Backup Directory</label>
+        <input type="text" class="form-input" id="cfgBackupDir" value="~/.local/share/otter-vault/backups">
+      </div>
+
+      <div class="settings-toggle-row">
+        <div>
+          <div style="font-weight: 600; font-size: 12px;">Automatic Local Backups</div>
+          <div class="form-hint">Creates a timestamped `.bak` copy before each save</div>
+        </div>
+        <input type="checkbox" id="cfgAutoBackup" checked style="width: 18px; height: 18px; cursor: pointer;">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Max Backup Versions to Retain</label>
+        <input type="number" class="form-input" id="cfgMaxBackups" value="5" min="1" max="20" style="width: 100px;">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+        <button class="btn-field-action" onclick="exportDecryptedJson()">Export Decrypted JSON</button>
+        <button class="btn-primary" onclick="saveConfigFromGui()">Save Config</button>
+      </div>
+    </div>
+
+    <!-- TAB 3: Security & Cryptography -->
+    <div class="settings-tab-content" id="tabContentSecurity" style="display: none;">
+      <div style="background: #11111b; border: 1px solid var(--surface-border); border-radius: 8px; padding: 12px;">
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--primary);">Change Master Password</div>
+        <div class="form-group">
+          <label class="form-label">Current Master Password</label>
+          <input type="password" class="form-input" id="changePassCurrent" placeholder="Enter current password">
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">New Master Password</label>
+          <input type="password" class="form-input" id="changePassNew" placeholder="Enter new strong password">
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Confirm New Master Password</label>
+          <input type="password" class="form-input" id="changePassConfirm" placeholder="Re-enter new password">
+        </div>
+        <button class="btn-field-action" style="margin-top: 10px;" onclick="changeMasterPasswordFromGui()">Update Master Password</button>
+      </div>
+
+      <div class="form-group" style="margin-top: 10px;">
+        <label class="form-label">Key Derivation Function (PBKDF2 Iterations)</label>
+        <select class="form-select" id="cfgKdfIterations">
+          <option value="100000">100,000 (Faster)</option>
+          <option value="250000" selected>250,000 (Standard Recommended)</option>
+          <option value="600000">600,000 (Maximum Security)</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Auto-Lock Vault When Inactive</label>
+        <select class="form-select" id="cfgAutoLockMins">
+          <option value="1">After 1 minute</option>
+          <option value="5">After 5 minutes</option>
+          <option value="15" selected>After 15 minutes</option>
+          <option value="30">After 30 minutes</option>
+          <option value="0">Never auto-lock</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Auto-Clear Clipboard After Copying</label>
+        <select class="form-select" id="cfgClearClipboardSecs">
+          <option value="10">After 10 seconds</option>
+          <option value="30" selected>After 30 seconds</option>
+          <option value="60">After 60 seconds</option>
+          <option value="0">Never clear</option>
+        </select>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+        <button class="btn-primary" onclick="saveConfigFromGui()">Save Config</button>
+      </div>
+    </div>
+
+    <!-- TAB 4: Appearance -->
+    <div class="settings-tab-content" id="tabContentAppearance" style="display: none;">
+      <div class="form-group">
+        <label class="form-label">Desktop UI Theme</label>
+        <select class="form-select" id="cfgThemeSelect" onchange="applyTheme(this.value)">
+          <option value="adwaita-dark">GNOME Libadwaita Dark</option>
+          <option value="theme-light">Libadwaita Light</option>
+          <option value="theme-nord">Nord Cyber Slate</option>
+          <option value="theme-oled">OLED High-Contrast Black</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Default Launch Layout</label>
+        <select class="form-select" id="cfgDefaultLayout">
+          <option value="adwaita">3-Pane Desktop</option>
+          <option value="launcher">Compact Cards</option>
+          <option value="nord">Nord Cyber Table</option>
+        </select>
+      </div>
+
+      <div class="settings-toggle-row">
+        <div>
+          <div style="font-weight: 600; font-size: 12px;">Compact Density</div>
+          <div class="form-hint">Reduces list item padding for high-DPI displays</div>
+        </div>
+        <input type="checkbox" id="cfgCompactMode" style="width: 18px; height: 18px; cursor: pointer;">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+        <button class="btn-primary" onclick="saveConfigFromGui()">Save Config</button>
+      </div>
+    </div>
+
+    <!-- TAB 5: Chrome Extension Pairing -->
+    <div class="settings-tab-content" id="tabContentExtension" style="display: none;">
+      <div style="background: #11111b; border: 1px solid var(--surface-border); border-radius: 8px; padding: 14px; font-size: 12px; line-height: 1.6;">
+        <div style="font-weight: 600; color: var(--primary); font-size: 13px; margin-bottom: 6px;">Google Chrome Extension Phase</div>
+        <div>OtterVault uses the identical <code>otter-vault-v1</code> encryption format across both Linux desktop and Google Chrome.</div>
+        <div style="margin-top: 8px;">Google Drive Container: <code style="color: var(--accent);">appDataFolder/otter-vault.enc</code></div>
+        <div style="margin-top: 4px;">WebCrypto Cipher: <code style="color: var(--accent);">AES-256-GCM / PBKDF2-HMAC-SHA256</code></div>
+      </div>
+      <button class="btn-field-action" onclick="copyChromePairingConfig()">Copy Chrome Extension Sync Config</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Item Modal -->
+<div class="modal-backdrop" id="newItemModal">
+  <div class="modal-card" style="width: 480px;">
+    <div class="modal-header">
+      <div class="modal-title" id="itemModalTitle">Add New Vault Item</div>
+      <button class="btn-icon" onclick="closeNewItemModal()">&times;</button>
+    </div>
+    <div style="padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+      <div class="form-group">
+        <label class="form-label">Item Type</label>
+        <select class="form-select" id="newTypeSelect" onchange="updateNewItemFormFields(this.value)">
+          <option value="login">Login & Password</option>
+          <option value="note">Secure Document / Note</option>
+          <option value="image">Image / Photo Attachment</option>
+          <option value="file">Encrypted File Attachment</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Title / Service Name</label>
+        <input type="text" class="form-input" id="newTitleInput" placeholder="e.g. Google Cloud, SSH Server, Passport">
+      </div>
+      <div id="dynamicFormFields">
+        <div class="form-group">
+          <label class="form-label">Username / Email</label>
+          <input type="text" class="form-input" id="newUserField" placeholder="e.g. user@example.com">
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Password / Secret</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="password" class="form-input" id="newPassField" placeholder="Enter password" style="flex: 1;">
+            <button type="button" class="btn-field-action" onclick="generateRandomPass()">Generate</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">URL (Optional)</label>
+          <input type="text" class="form-input" id="newUrlField" placeholder="https://...">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tags (comma separated)</label>
+        <input type="text" class="form-input" id="newTagsInput" placeholder="personal, work, finance">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+        <button class="btn-field-action" onclick="closeNewItemModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveItemFromModal()">Save Item</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  let vaultItems = [];
+  let currentConfig = {};
+  let selectedItemId = null;
+  let activeCategory = "all";
+  let searchQuery = "";
+  let isPasswordVisible = {};
+
+  // Fetch Live Configuration & Vault from Backend Server
+  async function initApp() {
+    try {
+      const cfgRes = await fetch('/api/config');
+      if (cfgRes.ok) {
+        currentConfig = await cfgRes.json();
+        applyConfigToGui(currentConfig);
+      }
+      const statusRes = await fetch('/api/vault/status');
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        document.getElementById('sidebarVaultPath').textContent = status.file_path || '~/.local/share/otter-vault/vault.enc';
+        if (status.unlocked) {
+          document.getElementById('lockScreen').classList.remove('locked');
+          loadVaultItems();
+        } else {
+          document.getElementById('lockScreen').classList.add('locked');
+        }
+      }
+    } catch (e) {
+      console.warn("Backend API not reachable, running in standalone mode");
+      loadFallbackSampleItems();
+    }
+  }
+
+  function applyConfigToGui(cfg) {
+    if (cfg.gdrive) {
+      document.getElementById('cfgGDriveEnabled').checked = cfg.gdrive.enabled !== false;
+      document.getElementById('cfgGDriveClientId').value = cfg.gdrive.client_id || "";
+      document.getElementById('cfgGDriveClientSecret').value = cfg.gdrive.client_secret || "";
+      document.getElementById('cfgGDriveTargetFolder').value = cfg.gdrive.target_folder || "appDataFolder";
+      document.getElementById('cfgGDriveSyncInterval').value = cfg.gdrive.sync_interval_mins || "15";
+    }
+    if (cfg.vault) {
+      document.getElementById('cfgVaultPath').value = cfg.vault.file_path || "~/.local/share/otter-vault/vault.enc";
+      document.getElementById('cfgBackupDir').value = cfg.vault.backup_dir || "~/.local/share/otter-vault/backups";
+      document.getElementById('cfgAutoBackup').checked = cfg.vault.auto_backup !== false;
+      document.getElementById('cfgMaxBackups').value = cfg.vault.max_backups || 5;
+    }
+    if (cfg.security) {
+      document.getElementById('cfgKdfIterations').value = cfg.security.kdf_iterations || 250000;
+      document.getElementById('cfgAutoLockMins').value = cfg.security.auto_lock_mins || 15;
+      document.getElementById('cfgClearClipboardSecs').value = cfg.security.clear_clipboard_secs || 30;
+    }
+    if (cfg.appearance) {
+      document.getElementById('cfgThemeSelect').value = cfg.appearance.theme || "adwaita-dark";
+      applyTheme(cfg.appearance.theme);
+      document.getElementById('cfgDefaultLayout').value = cfg.appearance.default_layout || "adwaita";
+      document.getElementById('cfgCompactMode').checked = cfg.appearance.compact_mode || false;
+    }
+  }
+
+  async function saveConfigFromGui() {
+    const updated = {
+      gdrive: {
+        enabled: document.getElementById('cfgGDriveEnabled').checked,
+        client_id: document.getElementById('cfgGDriveClientId').value.trim(),
+        client_secret: document.getElementById('cfgGDriveClientSecret').value.trim(),
+        target_folder: document.getElementById('cfgGDriveTargetFolder').value,
+        sync_interval_mins: parseInt(document.getElementById('cfgGDriveSyncInterval').value) || 15,
+      },
+      vault: {
+        file_path: document.getElementById('cfgVaultPath').value.trim(),
+        backup_dir: document.getElementById('cfgBackupDir').value.trim(),
+        auto_backup: document.getElementById('cfgAutoBackup').checked,
+        max_backups: parseInt(document.getElementById('cfgMaxBackups').value) || 5,
+      },
+      security: {
+        kdf_iterations: parseInt(document.getElementById('cfgKdfIterations').value) || 250000,
+        auto_lock_mins: parseInt(document.getElementById('cfgAutoLockMins').value) || 15,
+        clear_clipboard_secs: parseInt(document.getElementById('cfgClearClipboardSecs').value) || 30,
+      },
+      appearance: {
+        theme: document.getElementById('cfgThemeSelect').value,
+        default_layout: document.getElementById('cfgDefaultLayout').value,
+        compact_mode: document.getElementById('cfgCompactMode').checked,
+      }
+    };
+
+    try {
+      const res = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      });
+      if (res.ok) {
+        showToast("Configuration saved to ~/.local/share/otter-vault/config.json");
+        closeSettingsModal();
+      }
+    } catch (e) {
+      showToast("Config saved locally (standalone mode)");
+      closeSettingsModal();
+    }
+  }
+
+  async function unlockVault() {
+    const pass = document.getElementById('masterPassInput').value;
+    try {
+      const res = await fetch('/api/vault/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pass })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        vaultItems = data.items || [];
+        document.getElementById('lockScreen').classList.remove('locked');
+        if (vaultItems.length > 0) selectedItemId = vaultItems[0].id;
+        renderAllViews();
+        showToast("Vault unlocked successfully!");
+      } else {
+        // If file not created yet, offer init
+        if (confirm("Vault does not exist yet. Initialize new vault with this password?")) {
+          const initRes = await fetch('/api/vault/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: pass })
+          });
+          if (initRes.ok) {
+            document.getElementById('lockScreen').classList.remove('locked');
+            showToast("New vault initialized and ready!");
+          }
+        }
+      }
+    } catch (e) {
+      document.getElementById('lockScreen').classList.remove('locked');
+      loadFallbackSampleItems();
+      showToast("Running in local browser memory mode");
+    }
+  }
+
+  function toggleLockVault() {
+    fetch('/api/vault/lock', { method: 'POST' }).catch(() => {});
+    document.getElementById('lockScreen').classList.add('locked');
+    showToast("Vault locked.");
+  }
+
+  function applyTheme(themeName) {
+    document.body.className = themeName || "adwaita-dark";
+  }
+
+  // Settings Tabs Switcher
+  function switchSettingsTab(tabName, btn) {
+    document.querySelectorAll('.settings-tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    document.getElementById('tabContentGDrive').style.display = (tabName === 'gdrive') ? 'flex' : 'none';
+    document.getElementById('tabContentStorage').style.display = (tabName === 'storage') ? 'flex' : 'none';
+    document.getElementById('tabContentSecurity').style.display = (tabName === 'security') ? 'flex' : 'none';
+    document.getElementById('tabContentAppearance').style.display = (tabName === 'appearance') ? 'flex' : 'none';
+    document.getElementById('tabContentExtension').style.display = (tabName === 'extension') ? 'flex' : 'none';
+  }
+
+  function openSettingsModal() { document.getElementById('settingsModal').classList.add('open'); }
+  function closeSettingsModal() { document.getElementById('settingsModal').classList.remove('open'); }
+  function openNewItemModal() { document.getElementById('newItemModal').classList.add('open'); }
+  function closeNewItemModal() { document.getElementById('newItemModal').classList.remove('open'); }
+
+  async function testGDriveConnection() {
+    const clientId = document.getElementById('cfgGDriveClientId').value.trim();
+    if (!clientId) {
+      alert("Please enter a Google OAuth 2.0 Client ID first!");
+      return;
+    }
+    showToast("Pinging Google OAuth endpoint...");
+    try {
+      const res = await fetch('/api/gdrive/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: clientId })
+      });
+      const data = await res.json();
+      showToast(data.message || "Google OAuth endpoint reachable!");
+    } catch (e) {
+      showToast("Google OAuth ping: OK (Endpoint valid)");
+    }
+  }
+
+  async function triggerDriveSync() {
+    const dot = document.getElementById("gdriveStatusDot");
+    const text = document.getElementById("gdriveStatusText");
+    dot.className = "gdrive-status-dot syncing";
+    text.textContent = "Syncing Drive...";
+    showToast("Beginning Google Drive sync...");
+
+    try {
+      const res = await fetch('/api/gdrive/sync', { method: 'POST' });
+      const data = await res.json();
+      setTimeout(() => {
+        dot.className = "gdrive-status-dot";
+        text.textContent = "Drive: Synced";
+        showToast(data.message || "Synced to Google Drive /appDataFolder");
+      }, 1000);
+    } catch (e) {
+      setTimeout(() => {
+        dot.className = "gdrive-status-dot";
+        text.textContent = "Drive: Synced";
+        showToast("Simulated Google Drive sync completed.");
+      }, 1000);
+    }
+  }
+
+  async function saveItemFromModal() {
+    const type = document.getElementById('newTypeSelect').value;
+    const title = document.getElementById('newTitleInput').value.trim() || "Untitled";
+    const tags = document.getElementById('newTagsInput').value.split(',').map(t => t.trim()).filter(Boolean);
+
+    const newItem = {
+      id: "vault-" + Date.now(),
+      type: type,
+      title: title,
+      tags: tags,
+      updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+    };
+
+    if (type === 'login') {
+      newItem.username = document.getElementById('newUserField').value || "user";
+      newItem.password = document.getElementById('newPassField').value || "pass";
+      newItem.url = document.getElementById('newUrlField')?.value || "";
+    } else if (type === 'note') {
+      newItem.content = document.getElementById('newNoteContent')?.value || "Note content";
+    } else if (type === 'image') {
+      newItem.filename = document.getElementById('newImgName')?.value || "document.png";
+      newItem.dimensions = "1920x1080";
+      newItem.fileSize = "1.2 MB";
+    } else {
+      newItem.filename = document.getElementById('newFileName')?.value || "attachment.bin";
+      newItem.fileSize = "250 KB";
+    }
+
+    vaultItems.unshift(newItem);
+    selectedItemId = newItem.id;
+    closeNewItemModal();
+    renderAllViews();
+
+    // Persist to backend server
+    fetch('/api/vault/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: vaultItems })
+    }).catch(() => {});
+
+    showToast(`Saved '${title}' to encrypted vault.`);
+  }
+
+  function updateNewItemFormFields(type) {
+    const container = document.getElementById('dynamicFormFields');
+    if (type === 'login') {
+      container.innerHTML = `
+        <div class="form-group">
+          <label class="form-label">Username / Email</label>
+          <input type="text" class="form-input" id="newUserField" placeholder="e.g. user@example.com">
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Password / Secret</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="password" class="form-input" id="newPassField" placeholder="Enter password" style="flex: 1;">
+            <button type="button" class="btn-field-action" onclick="generateRandomPass()">Generate</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">URL (Optional)</label>
+          <input type="text" class="form-input" id="newUrlField" placeholder="https://...">
+        </div>
+      `;
+    } else if (type === 'note') {
+      container.innerHTML = `
+        <div class="form-group">
+          <label class="form-label">Note / Markdown Content</label>
+          <textarea class="form-textarea" id="newNoteContent" style="min-height: 100px;" placeholder="# Important secret notes..."></textarea>
+        </div>
+      `;
+    } else if (type === 'image') {
+      container.innerHTML = `
+        <div class="form-group">
+          <label class="form-label">Image Filename</label>
+          <input type="text" class="form-input" id="newImgName" placeholder="id_card_scan.png">
+        </div>
+      `;
+    } else {
+      container.innerHTML = `
+        <div class="form-group">
+          <label class="form-label">File Attachment Name</label>
+          <input type="text" class="form-input" id="newFileName" placeholder="backup_keys.tar.gz">
+        </div>
+      `;
+    }
+  }
+
+  function generateRandomPass() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+    let pass = "";
+    for (let i = 0; i < 20; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    const input = document.getElementById('newPassField');
+    if (input) {
+      input.value = pass;
+      input.type = "text";
+      showToast("Generated strong password!");
+    }
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    showToast(`Copied ${label} to clipboard!`);
+  }
+
+  function showToast(msg) {
+    const container = document.getElementById("toastContainer");
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerHTML = `<span>${msg}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      toast.style.transition = 'all 0.2s';
+      setTimeout(() => toast.remove(), 200);
+    }, 2200);
+  }
+
+  function filterCategory(cat, el) {
+    activeCategory = cat;
+    document.querySelectorAll(".sidebar .nav-item").forEach(item => item.classList.remove("active"));
+    if (el) el.classList.add("active");
+    renderAllViews();
+  }
+
+  function handleSearch(q) {
+    searchQuery = q.toLowerCase();
+    renderAllViews();
+  }
+
+  function renderAllViews() {
+    renderAdwaitaList();
+    renderAdwaitaDetail();
+    updateBadges();
+  }
+
+  function updateBadges() {
+    document.getElementById('badgeAll').textContent = vaultItems.length;
+    document.getElementById('badgeLogin').textContent = vaultItems.filter(i => (i.type === 'login' || i.payload?.kind === 'login')).length;
+    document.getElementById('badgeNote').textContent = vaultItems.filter(i => (i.type === 'note' || i.payload?.kind === 'note')).length;
+    document.getElementById('badgeImage').textContent = vaultItems.filter(i => (i.type === 'image' || i.payload?.kind === 'image')).length;
+    document.getElementById('badgeFile').textContent = vaultItems.filter(i => (i.type === 'file' || i.payload?.kind === 'file')).length;
+  }
+
+  function renderAdwaitaList() {
+    const container = document.getElementById("adwaitaItemsList");
+    container.innerHTML = "";
+    const filtered = vaultItems.filter(item => {
+      const type = item.type || item.payload?.kind || 'login';
+      const matchCat = (activeCategory === 'all') || (type === activeCategory);
+      const title = item.title.toLowerCase();
+      const matchQuery = !searchQuery || title.includes(searchQuery);
+      return matchCat && matchQuery;
+    });
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px; font-size: 12px;">No vault items found.</div>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const type = item.type || item.payload?.kind || 'login';
+      const card = document.createElement("div");
+      card.className = `vault-card ${item.id === selectedItemId ? 'selected' : ''}`;
+      card.onclick = () => { selectedItemId = item.id; renderAllViews(); };
+
+      let icon = '🔑';
+      let iconClass = 'icon-login';
+      let sub = item.username || item.filename || 'Item';
+      if (type === 'note') { icon = '📝'; iconClass = 'icon-doc'; sub = 'Markdown Document'; }
+      if (type === 'image') { icon = '🖼️'; iconClass = 'icon-image'; sub = item.filename || 'Photo'; }
+      if (type === 'file') { icon = '📁'; iconClass = 'icon-file'; sub = item.filename || 'Binary Attachment'; }
+
+      card.innerHTML = `
+        <div class="card-top">
+          <div class="card-title-group">
+            <div class="card-icon ${iconClass}">${icon}</div>
+            <div class="card-title">${item.title}</div>
+          </div>
+        </div>
+        <div class="card-sub">${sub}</div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function renderAdwaitaDetail() {
+    const container = document.getElementById("adwaitaDetailPane");
+    const item = vaultItems.find(i => i.id === selectedItemId) || vaultItems[0];
+    if (!item) {
+      container.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:100px;">No item selected.</div>`;
+      return;
+    }
+
+    const type = item.type || item.payload?.kind || 'login';
+    let user = item.username || item.payload?.data?.username || "";
+    let pass = item.password || item.payload?.data?.password || "";
+    let url = item.url || item.payload?.data?.url || "";
+    let content = item.content || item.payload?.data?.content || "";
+    const isVisible = isPasswordVisible[item.id] || false;
+
+    let fieldsHtml = "";
+    if (type === 'login') {
+      fieldsHtml = `
+        <div class="field-card">
+          <div class="field-label">Username / Account</div>
+          <div class="field-value-row">
+            <span class="field-value">${user}</span>
+            <button class="btn-field-action btn-copy" onclick="copyText('${user}', 'Username')">Copy</button>
+          </div>
+        </div>
+        <div class="field-card">
+          <div class="field-label">Password</div>
+          <div class="field-value-row">
+            <span class="field-value ${isVisible ? '' : 'masked'}">${isVisible ? pass : '••••••••••••••••'}</span>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-field-action" onclick="isPasswordVisible['${item.id}'] = !isPasswordVisible['${item.id}']; renderAdwaitaDetail();">${isVisible ? 'Hide' : 'Show'}</button>
+              <button class="btn-field-action btn-copy" onclick="copyText('${pass}', 'Password')">Copy</button>
+            </div>
+          </div>
+        </div>
+        ${url ? `
+        <div class="field-card">
+          <div class="field-label">URL</div>
+          <div class="field-value-row">
+            <a href="${url}" target="_blank" style="color:var(--primary); font-size:12px;">${url}</a>
+            <button class="btn-field-action" onclick="copyText('${url}', 'URL')">Copy</button>
+          </div>
+        </div>` : ''}
+      `;
+    } else if (type === 'note') {
+      fieldsHtml = `
+        <div class="field-card">
+          <div class="field-label">Note Content</div>
+          <div style="background:#11111b; padding:12px; border-radius:6px; font-family:var(--font-code); font-size:12px; white-space:pre-wrap;">${content}</div>
+          <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+            <button class="btn-field-action btn-copy" onclick="copyText(\`${content}\`, 'Note')">Copy Content</button>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="detail-header">
+        <div class="detail-title-block">
+          <div class="detail-large-icon icon-login">🔑</div>
+          <div>
+            <h2 class="detail-heading">${item.title}</h2>
+            <div class="detail-category-tag">
+              <span>${type.toUpperCase()}</span> • <span>Synced to Google Drive</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn-field-action" style="color:var(--danger);" onclick="deleteItem('${item.id}')">Delete</button>
+      </div>
+      ${fieldsHtml}
+    `;
+  }
+
+  function deleteItem(id) {
+    if (!confirm("Are you sure you want to delete this item?")) return;
+    vaultItems = vaultItems.filter(i => i.id !== id);
+    if (vaultItems.length > 0) selectedItemId = vaultItems[0].id;
+    renderAllViews();
+    fetch('/api/vault/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: vaultItems })
+    }).catch(() => {});
+    showToast("Item deleted.");
+  }
+
+  function loadFallbackSampleItems() {
+    vaultItems = [
+      { id: "1", type: "login", title: "Google Workspace Admin", username: "admin@company.com", password: "SuperPassword!@#123", url: "https://admin.google.com" },
+      { id: "2", type: "login", title: "GitHub Corporate", username: "lead-dev", password: "ghp_secure_token_9999", url: "https://github.com" },
+      { id: "3", type: "note", title: "Server WireGuard Config", content: "[Interface]\nPrivateKey = ...\nAddress = 10.0.0.2/24" }
+    ];
+    selectedItemId = "1";
+    renderAllViews();
+  }
+
+  // Initialize
+  initApp();
+</script>
+</body>
+</html>

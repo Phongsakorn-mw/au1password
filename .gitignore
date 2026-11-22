@@ -4,3 +4,6 @@
 *.bak
 .DS_Store
 *.enc
+
+__pycache__/
+*.pyc
