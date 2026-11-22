@@ -233,8 +233,12 @@ def gdrive_get_valid_token(cfg):
     return tokens["access_token"]
 
 def gdrive_find_vault_file(token, target_folder="appDataFolder"):
-    spaces = "appDataFolder" if target_folder == "appDataFolder" else "drive"
-    q = urllib.parse.quote("name = 'otter-vault.enc' and trashed = false")
+    if target_folder in ("MyDrive", "root"):
+        spaces = "drive"
+        q = urllib.parse.quote("name = 'otter-vault.enc' and trashed = false and 'root' in parents")
+    else:
+        spaces = "appDataFolder"
+        q = urllib.parse.quote("name = 'otter-vault.enc' and trashed = false")
     fields = urllib.parse.quote("files(id, name, modifiedTime, size)")
     url = f"https://www.googleapis.com/drive/v3/files?spaces={spaces}&q={q}&fields={fields}"
 
@@ -264,9 +268,10 @@ def gdrive_upload_vault(token, vault_path, target_folder="appDataFolder"):
     else:
         # Create new file using multipart upload
         boundary = f"-------OtterVaultBoundary{int(time.time())}"
+        parent_id = "root" if target_folder in ("MyDrive", "root") else "appDataFolder"
         metadata = {
             "name": "otter-vault.enc",
-            "parents": [target_folder]
+            "parents": [parent_id]
         }
         meta_part = json.dumps(metadata).encode("utf-8")
 
@@ -475,7 +480,7 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
                 return
 
             redirect_uri = "http://127.0.0.1:8765/oauth/callback"
-            scope = "https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/userinfo.email"
+            scope = "https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email"
             auth_url = (
                 f"https://accounts.google.com/o/oauth2/v2/auth?"
                 f"client_id={urllib.parse.quote(client_id)}&"
