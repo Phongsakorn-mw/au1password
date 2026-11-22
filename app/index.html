@@ -800,6 +800,16 @@
 
     <!-- TAB 1: Google Drive Sync -->
     <div class="settings-tab-content" id="tabContentGDrive">
+      <div id="gdriveAccountCard" style="background: #11111b; border: 1px solid var(--surface-border); border-radius: 8px; padding: 14px; display: flex; align-items: center; justify-content: space-between;">
+        <div>
+          <div id="gdriveAccountStatusTitle" style="font-weight: 600; font-size: 13px; color: var(--text-main);">Google Drive Account: Not Connected</div>
+          <div id="gdriveAccountStatusSub" class="form-hint">Connect your personal Google account to enable zero-knowledge cloud sync.</div>
+        </div>
+        <div id="gdriveAccountActionButtons">
+          <button class="btn-primary" onclick="startGoogleOAuth()">Connect with Google</button>
+        </div>
+      </div>
+
       <div class="settings-toggle-row">
         <div>
           <div style="font-weight: 600; font-size: 12px;">Enable Google Drive Sync</div>
@@ -811,11 +821,11 @@
       <div class="form-group">
         <label class="form-label">Google OAuth 2.0 Client ID</label>
         <input type="text" class="form-input" id="cfgGDriveClientId" placeholder="e.g. 123456789-abcdef.apps.googleusercontent.com">
-        <div class="form-hint">Obtained from your Google Cloud Console (APIs & Services > Credentials).</div>
+        <div class="form-hint">Redirect URI to authorize in Google Cloud Console: <code>http://127.0.0.1:8765/oauth/callback</code></div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Google OAuth 2.0 Client Secret (Optional for Desktop PKCE)</label>
+        <label class="form-label">Google OAuth 2.0 Client Secret (For Web/Desktop credentials)</label>
         <input type="password" class="form-input" id="cfgGDriveClientSecret" placeholder="GOCSPX-...">
       </div>
 
@@ -839,8 +849,7 @@
       </div>
 
       <div style="display: flex; gap: 8px; margin-top: 8px;">
-        <button class="btn-field-action" onclick="testGDriveConnection()">Ping Google OAuth</button>
-        <button class="btn-field-action" onclick="triggerDriveSync()">Sync Now</button>
+        <button class="btn-field-action" onclick="triggerDriveSync()">Sync Now (Upload/Download)</button>
         <button class="btn-primary" style="margin-left: auto;" onclick="saveConfigFromGui()">Save Config</button>
       </div>
     </div>
@@ -1070,6 +1079,29 @@
       document.getElementById('cfgGDriveClientSecret').value = cfg.gdrive.client_secret || "";
       document.getElementById('cfgGDriveTargetFolder').value = cfg.gdrive.target_folder || "appDataFolder";
       document.getElementById('cfgGDriveSyncInterval').value = cfg.gdrive.sync_interval_mins || "15";
+
+      const titleEl = document.getElementById('gdriveAccountStatusTitle');
+      const subEl = document.getElementById('gdriveAccountStatusSub');
+      const actionEl = document.getElementById('gdriveAccountActionButtons');
+      const pillText = document.getElementById('gdriveStatusText');
+
+      if (cfg.gdrive.connected) {
+        if (titleEl) {
+          titleEl.textContent = "Google Drive Account: Connected";
+          titleEl.style.color = "var(--accent)";
+        }
+        if (subEl) subEl.textContent = `Connected as: ${cfg.gdrive.account_email || 'Authorized User'}`;
+        if (actionEl) actionEl.innerHTML = `<button class="btn-field-action" style="color:var(--danger);" onclick="disconnectGoogle()">Disconnect</button>`;
+        if (pillText) pillText.textContent = "Drive: Connected";
+      } else {
+        if (titleEl) {
+          titleEl.textContent = "Google Drive Account: Not Connected";
+          titleEl.style.color = "var(--text-main)";
+        }
+        if (subEl) subEl.textContent = "Connect your personal Google account to enable zero-knowledge cloud sync.";
+        if (actionEl) actionEl.innerHTML = `<button class="btn-primary" onclick="startGoogleOAuth()">Connect with Google</button>`;
+        if (pillText) pillText.textContent = cfg.gdrive.client_id ? "Drive: Ready" : "Drive: Setup";
+      }
     }
     if (cfg.vault) {
       document.getElementById('cfgVaultPath').value = cfg.vault.file_path || "~/.local/share/otter-vault/vault.enc";
@@ -1196,23 +1228,49 @@
   function openNewItemModal() { document.getElementById('newItemModal').classList.add('open'); }
   function closeNewItemModal() { document.getElementById('newItemModal').classList.remove('open'); }
 
-  async function testGDriveConnection() {
+  async function startGoogleOAuth() {
     const clientId = document.getElementById('cfgGDriveClientId').value.trim();
     if (!clientId) {
-      alert("Please enter a Google OAuth 2.0 Client ID first!");
+      alert("Please enter your Google OAuth 2.0 Client ID and click 'Save Config' first!");
       return;
     }
-    showToast("Pinging Google OAuth endpoint...");
+    await saveConfigFromGui();
     try {
-      const res = await fetch('/api/gdrive/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: clientId })
-      });
+      const res = await fetch('/api/gdrive/auth-url', { method: 'POST' });
       const data = await res.json();
-      showToast(data.message || "Google OAuth endpoint reachable!");
+      if (data.auth_url) {
+        window.open(data.auth_url, '_blank', 'width=600,height=700');
+        showToast("Opening Google Sign-In... Authorize in browser.");
+        let checks = 0;
+        const interval = setInterval(async () => {
+          checks++;
+          const stRes = await fetch('/api/vault/status');
+          if (stRes.ok) {
+            const st = await stRes.json();
+            if (st.gdrive_connected) {
+              clearInterval(interval);
+              showToast(`Google Drive connected as ${st.gdrive_email || 'User'}!`);
+              initApp();
+            }
+          }
+          if (checks > 60) clearInterval(interval);
+        }, 1500);
+      } else {
+        alert(data.error || "Failed to start Google OAuth");
+      }
     } catch (e) {
-      showToast("Google OAuth ping: OK (Endpoint valid)");
+      alert("Error: " + e.message);
+    }
+  }
+
+  async function disconnectGoogle() {
+    if (!confirm("Disconnect Google Drive? Your local encrypted vault will remain untouched.")) return;
+    try {
+      await fetch('/api/gdrive/disconnect', { method: 'POST' });
+      showToast("Google Drive disconnected.");
+      initApp();
+    } catch (e) {
+      showToast("Failed to disconnect.");
     }
   }
 
@@ -1221,22 +1279,24 @@
     const text = document.getElementById("gdriveStatusText");
     dot.className = "gdrive-status-dot syncing";
     text.textContent = "Syncing Drive...";
-    showToast("Beginning Google Drive sync...");
+    showToast("Starting real Google Drive sync...");
 
     try {
       const res = await fetch('/api/gdrive/sync', { method: 'POST' });
       const data = await res.json();
-      setTimeout(() => {
+      if (res.ok) {
         dot.className = "gdrive-status-dot";
         text.textContent = "Drive: Synced";
-        showToast(data.message || "Synced to Google Drive /appDataFolder");
-      }, 1000);
+        showToast(data.message || "Synced to Google Drive!");
+      } else {
+        dot.className = "gdrive-status-dot";
+        text.textContent = "Drive: Error";
+        alert(data.error || "Google Drive sync error");
+      }
     } catch (e) {
-      setTimeout(() => {
-        dot.className = "gdrive-status-dot";
-        text.textContent = "Drive: Synced";
-        showToast("Simulated Google Drive sync completed.");
-      }, 1000);
+      dot.className = "gdrive-status-dot";
+      text.textContent = "Drive: Offline";
+      showToast("Sync network error: " + e.message);
     }
   }
 
