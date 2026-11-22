@@ -95,6 +95,20 @@ def save_tokens(tokens):
     with open(DEFAULT_TOKEN_PATH, "w", encoding="utf-8") as f:
         json.dump(tokens, f, indent=2)
 
+def open_system_browser(url):
+    import subprocess
+    import shutil
+    for cmd in ["google-chrome-stable", "google-chrome", "chromium", "firefox", "xdg-open"]:
+        if shutil.which(cmd):
+            try:
+                subprocess.Popen([cmd, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print(f"[OtterVault] Launched system browser using {cmd}: {url[:60]}...")
+                return True
+            except Exception as e:
+                print(f"[OtterVault] Failed to launch {cmd}: {e}")
+    import webbrowser
+    return webbrowser.open(url)
+
 # Cryptography helpers (PBKDF2-HMAC-SHA256 & AES-256-GCM)
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
@@ -471,7 +485,9 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
                 f"access_type=offline&"
                 f"prompt=consent"
             )
-            self._send_json({"auth_url": auth_url})
+            # Directly launch system browser on Linux
+            launched = open_system_browser(auth_url)
+            self._send_json({"auth_url": auth_url, "launched": launched})
 
         elif url.path == "/api/gdrive/disconnect":
             if DEFAULT_TOKEN_PATH.exists():
@@ -634,6 +650,20 @@ def launch_gtk_window(port=8765):
     webview = WebKit2.WebView()
     settings = webview.get_settings()
     settings.set_enable_developer_extras(True)
+    settings.set_javascript_can_open_windows_automatically(True)
+
+    # Intercept any external links or popups and open in the system browser
+    def on_decide_policy(view, decision, decision_type):
+        if decision_type in (WebKit2.PolicyDecisionType.NAVIGATION_ACTION, WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION):
+            req = decision.get_request()
+            uri = req.get_uri()
+            if uri and not uri.startswith("http://127.0.0.1") and not uri.startswith("http://localhost"):
+                open_system_browser(uri)
+                decision.ignore()
+                return True
+        return False
+
+    webview.connect("decide-policy", on_decide_policy)
 
     webview.load_uri(f"http://127.0.0.1:{port}")
     win.add(webview)
