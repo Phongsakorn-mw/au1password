@@ -521,7 +521,17 @@ class OtterRequestHandler(BaseHTTPRequestHandler):
                     "timestamp": cfg["gdrive"]["last_sync"],
                     "message": f"Successfully synced vault to Google Drive ({action})"
                 })
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="ignore")
+                try:
+                    err_json = json.loads(err_body)
+                    msg = err_json.get("error", {}).get("message", err_body)
+                except Exception:
+                    msg = err_body or str(e)
+                print(f"[OtterVault] Google Drive API Error ({e.code}): {msg}")
+                self._send_json({"error": msg}, 500)
             except Exception as e:
+                print(f"[OtterVault] Sync Exception: {str(e)}")
                 self._send_json({"error": f"Google Drive sync failed: {str(e)}"}, 500)
 
         elif url.path == "/api/vault/init":
