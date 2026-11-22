@@ -1,0 +1,1861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OtterVault - Linux Personal Cloud-Sync Vault</title>
+  <style>
+    :root {
+      --bg: var(--background, #181825);
+      --card-bg: var(--card, #1e1e2e);
+      --card-fg: var(--card-foreground, #cdd6f4);
+      --surface: #24273a;
+      --surface-border: var(--border, #313244);
+      --text-main: var(--foreground, #cdd6f4);
+      --text-muted: var(--muted-foreground, #a6adc8);
+      --primary: var(--primary, #89b4fa);
+      --primary-hover: #b4befe;
+      --primary-fg: var(--primary-foreground, #11111b);
+      --accent: var(--accent, #a6e3a1);
+      --accent-hover: #94e2d5;
+      --accent-fg: var(--accent-foreground, #11111b);
+      --danger: var(--destructive, #f38ba8);
+      --warning: #f9e2af;
+      --info: #89dceb;
+      --radius-sm: 6px;
+      --radius: var(--radius, 10px);
+      --radius-lg: 14px;
+      --font-ui: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, sans-serif);
+      --font-code: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace);
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+      --shadow-lg: 0 12px 32px rgba(0,0,0,0.45);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg);
+      color: var(--text-main);
+      padding: 16px;
+      min-height: 100%;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Linux App Window Frame */
+    .app-window {
+      max-width: 1240px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Headerbar (GNOME / Linux Style) */
+    .headerbar {
+      height: 52px;
+      background: #11111b;
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      gap: 12px;
+    }
+
+    .window-controls-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .win-btn {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .win-close { background: #f38ba8; }
+    .win-min { background: #f9e2af; }
+    .win-max { background: #a6e3a1; }
+
+    .app-branding {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+    .app-branding svg { color: var(--primary); }
+
+    /* Switcher for Design Alternatives */
+    .design-switcher {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      gap: 2px;
+    }
+    .switcher-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .switcher-btn.active {
+      background: var(--primary);
+      color: var(--primary-fg);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Google Drive Sync Pill */
+    .gdrive-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .gdrive-pill:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+    }
+    .gdrive-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #a6e3a1;
+      display: inline-block;
+      box-shadow: 0 0 6px rgba(166, 227, 161, 0.6);
+    }
+    .gdrive-status-dot.syncing {
+      background: var(--warning);
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-icon:hover {
+      background: var(--surface);
+      color: var(--text-main);
+      border-color: var(--surface-border);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: none;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.15s;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+
+    /* Main App Area */
+    .vault-container {
+      min-height: 620px;
+      display: flex;
+      position: relative;
+    }
+
+    /* ============================================================ */
+    /* VARIANT 1: 3-PANE ADWAITA DESKTOP LAYOUT (Default) */
+    /* ============================================================ */
+    .layout-adwaita {
+      display: flex;
+      width: 100%;
+    }
+
+    /* Left Pane: Navigation Sidebar */
+    .sidebar {
+      width: 220px;
+      background: #181825;
+      border-right: 1px solid var(--surface-border);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 8px;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    .nav-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 0 8px 4px 8px;
+    }
+
+    .nav-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover {
+      background: var(--surface);
+      color: var(--text-main);
+    }
+    .nav-item.active {
+      background: #313244;
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .nav-item-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .nav-badge {
+      background: #1e1e2e;
+      border: 1px solid var(--surface-border);
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 10px;
+      color: var(--text-muted);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 8px;
+      background: #11111b;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--surface-border);
+      font-size: 11px;
+    }
+    .gdrive-storage-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      color: var(--text-muted);
+    }
+    .progress-bar-bg {
+      height: 4px;
+      background: var(--surface);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 32%;
+    }
+
+    /* Middle Pane: Item List */
+    .item-list-pane {
+      width: 340px;
+      border-right: 1px solid var(--surface-border);
+      background: var(--card-bg);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .list-toolbar {
+      padding: 12px;
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-box svg {
+      position: absolute;
+      left: 10px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .search-input {
+      width: 100%;
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      padding: 7px 10px 7px 32px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--primary);
+    }
+
+    .items-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .vault-card {
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+    }
+    .vault-card:hover {
+      background: var(--surface);
+      border-color: #45475a;
+    }
+    .vault-card.selected {
+      background: #2a2b3d;
+      border-color: var(--primary);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .card-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .icon-login { background: rgba(137, 180, 250, 0.15); color: #89b4fa; }
+    .icon-doc { background: rgba(166, 227, 161, 0.15); color: #a6e3a1; }
+    .icon-image { background: rgba(249, 226, 175, 0.15); color: #f9e2af; }
+    .icon-file { background: rgba(203, 166, 247, 0.15); color: #cba6f7; }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-left: 32px;
+    }
+
+    .card-quick-actions {
+      display: none;
+      gap: 4px;
+    }
+    .vault-card:hover .card-quick-actions {
+      display: flex;
+    }
+
+    .mini-action-btn {
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .mini-action-btn:hover {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+
+    /* Right Pane: Detail & Preview */
+    .detail-pane {
+      flex: 1;
+      background: #1e1e2e;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 20px;
+      gap: 16px;
+    }
+
+    .detail-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 16px;
+    }
+    .detail-title-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .detail-large-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .detail-heading {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .detail-category-tag {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .field-card {
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+    }
+    .field-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .field-value-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .field-value {
+      font-size: 13px;
+      color: var(--text-main);
+      font-family: var(--font-code);
+      word-break: break-all;
+    }
+    .field-value.masked {
+      letter-spacing: 2px;
+    }
+
+    .field-action-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-field-action {
+      background: #24273a;
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      padding: 5px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }
+    .btn-field-action:hover {
+      background: var(--surface-border);
+      color: var(--text-main);
+    }
+    .btn-field-action.btn-copy:hover {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+
+    /* Preview Section */
+    .preview-box {
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .preview-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preview-content-image {
+      max-height: 260px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #181825;
+      border: 1px solid #313244;
+      cursor: pointer;
+    }
+    .preview-content-image img, .preview-content-image svg {
+      max-width: 100%;
+      max-height: 240px;
+      object-fit: contain;
+    }
+
+    .preview-content-doc {
+      background: #181825;
+      padding: 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      max-height: 240px;
+      overflow-y: auto;
+      border: 1px solid #313244;
+    }
+    .preview-content-doc h4 {
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+    .preview-content-doc code {
+      background: #11111b;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-family: var(--font-code);
+      font-size: 11px;
+      color: var(--accent);
+    }
+
+    /* ============================================================ */
+    /* VARIANT 2: COMPACT CARD LAUNCHER (1Password/Spotlight Style) */
+    /* ============================================================ */
+    .layout-launcher {
+      display: none;
+      width: 100%;
+      padding: 20px;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .launcher-search-hero {
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .launcher-search-hero input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 15px;
+      outline: none;
+    }
+    .launcher-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .launcher-card {
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .launcher-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+    .launcher-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .launcher-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .launcher-btn {
+      flex: 1;
+      background: #24273a;
+      border: 1px solid var(--surface-border);
+      color: var(--text-main);
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .launcher-btn:hover {
+      background: var(--primary);
+      color: var(--primary-fg);
+    }
+
+    /* ============================================================ */
+    /* VARIANT 3: NORD CYBER TERMINAL STYLE (High Density / Sysadmin) */
+    /* ============================================================ */
+    .layout-nord {
+      display: none;
+      width: 100%;
+      flex-direction: column;
+      background: #2e3440;
+      color: #eceff4;
+      font-family: var(--font-code);
+    }
+    .nord-topbar {
+      background: #242933;
+      padding: 6px 14px;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #434c5e;
+      color: #88c0d0;
+    }
+    .nord-table-container {
+      padding: 12px;
+      overflow-x: auto;
+    }
+    .nord-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .nord-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: #81a1c1;
+      border-bottom: 1px solid #4c566a;
+      font-weight: 600;
+    }
+    .nord-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #3b4252;
+    }
+    .nord-table tr:hover {
+      background: #3b4252;
+      cursor: pointer;
+    }
+    .nord-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: bold;
+      background: #434c5e;
+      color: #88c0d0;
+    }
+
+    /* Toast Notification */
+    .toast-container {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+      pointer-events: none;
+    }
+    .toast {
+      background: #11111b;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+      animation: slideIn 0.2s ease forwards;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(10px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Modal / Popups */
+    .modal-backdrop {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal-card {
+      width: 440px;
+      background: var(--card-bg);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-lg);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 10px;
+    }
+    .modal-title { font-size: 14px; font-weight: 600; }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .form-input, .form-select, .form-textarea {
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-sm);
+      color: var(--text-main);
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--primary);
+    }
+    .form-textarea {
+      min-height: 80px;
+      font-family: var(--font-code);
+      resize: vertical;
+    }
+
+    /* Sync Overlay Animation */
+    .sync-banner {
+      background: rgba(137, 180, 250, 0.1);
+      border-left: 3px solid var(--primary);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    /* Master Lock Screen */
+    .lock-screen-overlay {
+      position: absolute;
+      top: 52px; left: 0; right: 0; bottom: 0;
+      background: #11111b;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 400;
+    }
+    .lock-screen-overlay.locked { display: flex; }
+    .lock-box {
+      width: 320px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* Architecture Explainer Bar */
+    .arch-bar {
+      background: #11111b;
+      border-top: 1px solid var(--surface-border);
+      padding: 10px 16px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .arch-tags {
+      display: flex;
+      gap: 8px;
+    }
+    .arch-tag {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: var(--text-main);
+      font-size: 10px;
+      font-family: var(--font-code);
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-window" id="appWindow">
+  <!-- Headerbar (GNOME Libadwaita / Linux Desktop Style) -->
+  <header class="headerbar">
+    <div class="window-controls-left">
+      <span class="win-btn win-close" title="Close"></span>
+      <span class="win-btn win-min" title="Minimize"></span>
+      <span class="win-btn win-max" title="Maximize"></span>
+      <div class="app-branding" style="margin-left: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <span>OtterVault</span>
+        <span style="font-size: 10px; background: #313244; color: #a6adc8; padding: 1px 5px; border-radius: 3px;">Linux Demo</span>
+      </div>
+    </div>
+
+    <!-- Design Alternatives Switcher (Principle: Exhaust the Design Space) -->
+    <div class="design-switcher">
+      <button class="switcher-btn active" id="btnModeAdwaita" onclick="switchLayout('adwaita')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>
+        3-Pane Adwaita
+      </button>
+      <button class="switcher-btn" id="btnModeLauncher" onclick="switchLayout('launcher')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Compact Cards
+      </button>
+      <button class="switcher-btn" id="btnModeNord" onclick="switchLayout('nord')">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        Nord Cyber
+      </button>
+    </div>
+
+    <!-- Right Header Actions & Google Drive Pill -->
+    <div class="header-actions">
+      <!-- Google Drive Sync Status Pill -->
+      <div class="gdrive-pill" id="gdrivePill" onclick="triggerDriveSync()" title="Click to trigger Google Drive Sync">
+        <span class="gdrive-status-dot" id="gdriveStatusDot"></span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z"/>
+        </svg>
+        <span id="gdriveStatusText">Google Drive: Synced</span>
+      </div>
+
+      <button class="btn-primary" onclick="openNewItemModal()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>New Item</span>
+      </button>
+
+      <button class="btn-icon" onclick="toggleLockVault()" title="Lock Vault">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Lock Screen Overlay -->
+  <div class="lock-screen-overlay" id="lockScreen">
+    <div class="lock-box">
+      <div style="width: 56px; height: 56px; border-radius: 50%; background: #1e1e2e; margin: 0 auto; display: flex; align-items: center; justify-content: center; border: 1px solid var(--surface-border);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f38ba8" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h3 style="font-size: 16px; font-weight: 600;">Vault Locked</h3>
+      <p style="font-size: 12px; color: var(--text-muted);">Enter master password to decrypt local AES-256 keys.</p>
+      <input type="password" id="masterPassInput" class="form-input" placeholder="Master Password (demo: test)" value="test" style="text-align: center;">
+      <button class="btn-primary" onclick="unlockVault()" style="justify-content: center;">
+        <span>Unlock Vault</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Container -->
+  <div class="vault-container">
+
+    <!-- ============================================================ -->
+    <!-- VARIANT 1: 3-PANE ADWAITA LAYOUT -->
+    <!-- ============================================================ -->
+    <div class="layout-adwaita" id="layoutAdwaita">
+      <!-- Left Pane: Categories -->
+      <aside class="sidebar">
+        <div class="nav-group-title">Vault Categories</div>
+        <ul class="nav-list">
+          <li class="nav-item active" onclick="filterCategory('all', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              <span>All Items</span>
+            </div>
+            <span class="nav-badge" id="badgeAll">6</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('login', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span>Logins / Passwords</span>
+            </div>
+            <span class="nav-badge" id="badgeLogin">3</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('note', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <span>Text / Documents</span>
+            </div>
+            <span class="nav-badge" id="badgeNote">1</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('image', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>Photos / Images</span>
+            </div>
+            <span class="nav-badge" id="badgeImage">1</span>
+          </li>
+          <li class="nav-item" onclick="filterCategory('file', this)">
+            <div class="nav-item-left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+              <span>Encrypted Files</span>
+            </div>
+            <span class="nav-badge" id="badgeFile">1</span>
+          </li>
+        </ul>
+
+        <div class="nav-group-title" style="margin-top: 8px;">Tags</div>
+        <ul class="nav-list">
+          <li class="nav-item" onclick="filterTag('work')">
+            <div class="nav-item-left">
+              <span style="color: #89b4fa;">#</span>
+              <span>work</span>
+            </div>
+            <span class="nav-badge">2</span>
+          </li>
+          <li class="nav-item" onclick="filterTag('personal')">
+            <div class="nav-item-left">
+              <span style="color: #a6e3a1;">#</span>
+              <span>personal</span>
+            </div>
+            <span class="nav-badge">3</span>
+          </li>
+          <li class="nav-item" onclick="filterTag('crypto')">
+            <div class="nav-item-left">
+              <span style="color: #f9e2af;">#</span>
+              <span>crypto</span>
+            </div>
+            <span class="nav-badge">1</span>
+          </li>
+        </ul>
+
+        <!-- Bottom Google Drive Storage Card -->
+        <div class="sidebar-footer">
+          <div class="gdrive-storage-info">
+            <span>Google Drive Storage</span>
+            <span>4.8 MB</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill"></div>
+          </div>
+          <div style="font-size: 10px; color: #6c7086; margin-top: 6px;">Folder: <code>/appDataFolder/vault.enc</code></div>
+        </div>
+      </aside>
+
+      <!-- Middle Pane: Items List -->
+      <section class="item-list-pane">
+        <div class="list-toolbar">
+          <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" id="adwaitaSearchInput" placeholder="Search logins, notes, files..." oninput="handleSearch(this.value)">
+          </div>
+        </div>
+
+        <div class="items-scroll" id="adwaitaItemsList">
+          <!-- Populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- Right Pane: Detail & Preview -->
+      <main class="detail-pane" id="adwaitaDetailPane">
+        <!-- Populated by JavaScript -->
+      </main>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- VARIANT 2: COMPACT CARD LAUNCHER -->
+    <!-- ============================================================ -->
+    <div class="layout-launcher" id="layoutLauncher">
+      <div class="launcher-search-hero">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Type to search and press Enter to quick-copy..." id="launcherSearchInput" oninput="handleLauncherSearch(this.value)">
+        <span style="font-size: 11px; background: #313244; padding: 2px 6px; border-radius: 4px; color: var(--text-muted);">Ctrl + K</span>
+      </div>
+
+      <div class="launcher-grid" id="launcherCardsGrid">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- VARIANT 3: NORD CYBER TERMINAL -->
+    <!-- ============================================================ -->
+    <div class="layout-nord" id="layoutNord">
+      <div class="nord-topbar">
+        <span>VAULT STATUS: [ENCRYPTED] // CIPHER: AES-256-GCM // DRV_SYNC: READY</span>
+        <span>SESSION: LOCAL_LINUX // 6 OBJECTS LOADED</span>
+      </div>
+      <div class="nord-table-container">
+        <table class="nord-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>TYPE</th>
+              <th>NAME / KEY</th>
+              <th>IDENTITY / USERNAME</th>
+              <th>ACTIONS</th>
+              <th>G-DRIVE CHECKSUM</th>
+            </tr>
+          </thead>
+          <tbody id="nordTableBody">
+            <!-- Populated by JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Architecture & Rust Roadmap Info Bar -->
+  <footer class="arch-bar">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span style="color: #a6e3a1;">● Target Stack:</span>
+      <span>Rust (Backend / Crypto) + Tauri 2.0 (Linux Desktop) + Google Drive API (OAuth2 PKCE)</span>
+    </div>
+    <div class="arch-tags">
+      <span class="arch-tag">XChaCha20-Poly1305</span>
+      <span class="arch-tag">Argon2id KDF</span>
+      <span class="arch-tag">libsecret / Keyring</span>
+      <span class="arch-tag">gdrive /appDataFolder</span>
+    </div>
+  </footer>
+</div>
+
+<!-- Add New Item Modal -->
+<div class="modal-backdrop" id="newItemModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">Add New Vault Item</div>
+      <button class="btn-icon" onclick="closeNewItemModal()">&times;</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Item Type</label>
+      <select class="form-select" id="newTypeSelect" onchange="updateNewItemFormFields(this.value)">
+        <option value="login">Login & Password</option>
+        <option value="note">Secure Document / Note</option>
+        <option value="image">Image / Media File</option>
+        <option value="file">Encrypted File Attachment</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Title / Service Name</label>
+      <input type="text" class="form-input" id="newTitleInput" placeholder="e.g. Google Cloud, SSH Server, Passport">
+    </div>
+    <div id="dynamicFormFields">
+      <div class="form-group" style="margin-top: 8px;">
+        <label class="form-label">Username / Email</label>
+        <input type="text" class="form-input" id="newUserField" placeholder="e.g. user@example.com">
+      </div>
+      <div class="form-group" style="margin-top: 8px;">
+        <label class="form-label">Password / Secret</label>
+        <div style="display: flex; gap: 6px;">
+          <input type="password" class="form-input" id="newPassField" placeholder="Enter password" style="flex: 1;">
+          <button type="button" class="btn-field-action" onclick="generateRandomPass()">Generate</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top: 8px;">
+      <label class="form-label">Tags (comma separated)</label>
+      <input type="text" class="form-input" id="newTagsInput" placeholder="personal, work, finance">
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+      <button class="btn-field-action" onclick="closeNewItemModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveNewItem()">Save to Vault</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Lightbox Modal -->
+<div class="modal-backdrop" id="lightboxModal" onclick="closeLightbox()">
+  <div style="max-width: 80%; max-height: 80%; display: flex; flex-direction: column; align-items: center; gap: 10px;" onclick="event.stopPropagation()">
+    <div id="lightboxContent" style="background: #11111b; padding: 12px; border-radius: 8px; border: 1px solid #313244;"></div>
+    <button class="btn-primary" onclick="closeLightbox()">Close Preview</button>
+  </div>
+</div>
+
+<!-- Toast Feedback Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  // Sample Initial Vault Items
+  const vaultItems = [
+    {
+      id: "vault-01",
+      type: "login",
+      title: "GitHub Work Account",
+      username: "developer@linux-vault.org",
+      password: "p@ssw0rd_Super_Secure_99#",
+      url: "https://github.com",
+      tags: ["work", "dev"],
+      updatedAt: "2026-11-22 17:15",
+      notes: "Production deployment token & 2FA recovery backup",
+      totp: "847 291"
+    },
+    {
+      id: "vault-02",
+      type: "login",
+      title: "Google Drive & Cloud Console",
+      username: "phongsakorn.personal@gmail.com",
+      password: "G-Drive!Storage_VaultKey_2026",
+      url: "https://drive.google.com",
+      tags: ["personal", "cloud"],
+      updatedAt: "2026-11-22 16:40",
+      notes: "Main Google Drive account used for encrypted vault storage",
+      totp: "192 482"
+    },
+    {
+      id: "vault-03",
+      type: "login",
+      title: "ProtonMail Secure Webmail",
+      username: "vault-admin@proton.me",
+      password: "Pr0t0n_M@il_Encrypted_77*",
+      url: "https://mail.proton.me",
+      tags: ["personal", "finance"],
+      updatedAt: "2026-11-21 20:10",
+      notes: "Used for sensitive notifications and banking confirmations"
+    },
+    {
+      id: "vault-04",
+      type: "note",
+      title: "Linux Server WireGuard Config",
+      content: `# WireGuard VPS Client Setup
+[Interface]
+PrivateKey = aB8x...encrypted_wireguard_key...90=
+Address = 10.0.0.2/24
+DNS = 1.1.1.1, 8.8.8.8
+
+[Peer]
+PublicKey = yT9q...vps_public_key...44=
+Endpoint = 203.0.113.15:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25`,
+      tags: ["work", "linux"],
+      updatedAt: "2026-11-22 12:00"
+    },
+    {
+      id: "vault-05",
+      type: "image",
+      title: "Thai ID Card / Passport Scan",
+      filename: "id_card_scan_encrypted.png",
+      dimensions: "1920 x 1080 px",
+      fileSize: "1.4 MB",
+      checksum: "sha256:8b7a4c9d...e1f2",
+      tags: ["personal", "documents"],
+      updatedAt: "2026-11-20 09:30",
+      svgGraphic: `<svg width="280" height="170" viewBox="0 0 280 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="280" height="170" rx="10" fill="#1e1e2e" stroke="#89b4fa" stroke-width="2"/>
+        <rect x="15" y="15" width="250" height="24" rx="4" fill="#313244"/>
+        <text x="25" y="31" fill="#89b4fa" font-size="11" font-weight="bold">IDENTIFICATION CARD (ENCRYPTED COPY)</text>
+        <circle cx="55" cy="95" r="30" fill="#45475a"/>
+        <circle cx="55" cy="85" r="12" fill="#89b4fa"/>
+        <path d="M35 115 C35 100, 75 100, 75 115 Z" fill="#89b4fa"/>
+        <rect x="105" y="60" width="150" height="10" rx="3" fill="#45475a"/>
+        <rect x="105" y="80" width="110" height="10" rx="3" fill="#45475a"/>
+        <rect x="105" y="100" width="130" height="10" rx="3" fill="#45475a"/>
+        <rect x="105" y="125" width="80" height="16" rx="4" fill="#a6e3a1"/>
+        <text x="113" y="137" fill="#11111b" font-size="10" font-weight="bold">VERIFIED</text>
+      </svg>`
+    },
+    {
+      id: "vault-06",
+      type: "file",
+      title: "Bitcoin Cold Wallet Recovery Sheet",
+      filename: "btc_seed_backup_aes256.pdf",
+      fileSize: "248 KB",
+      checksum: "sha256:d3f4a10e...88c3",
+      tags: ["crypto", "personal"],
+      updatedAt: "2026-11-19 14:22",
+      notes: "BIP-39 seed phrase recovery document encrypted with hardware master key"
+    }
+  ];
+
+  let selectedItemId = "vault-01";
+  let activeCategory = "all";
+  let searchQuery = "";
+  let currentLayout = "adwaita";
+  let isPasswordVisible = {};
+
+  // Switch Design Layout
+  function switchLayout(layoutName) {
+    currentLayout = layoutName;
+    document.getElementById("btnModeAdwaita").classList.toggle("active", layoutName === 'adwaita');
+    document.getElementById("btnModeLauncher").classList.toggle("active", layoutName === 'launcher');
+    document.getElementById("btnModeNord").classList.toggle("active", layoutName === 'nord');
+
+    document.getElementById("layoutAdwaita").style.display = (layoutName === 'adwaita') ? 'flex' : 'none';
+    document.getElementById("layoutLauncher").style.display = (layoutName === 'launcher') ? 'flex' : 'none';
+    document.getElementById("layoutNord").style.display = (layoutName === 'nord') ? 'flex' : 'none';
+
+    renderAllViews();
+  }
+
+  // Filter Items
+  function getFilteredItems() {
+    return vaultItems.filter(item => {
+      const matchCat = (activeCategory === 'all') || (item.type === activeCategory);
+      const query = searchQuery.toLowerCase().trim();
+      if (!query) return matchCat;
+      const matchSearch = item.title.toLowerCase().includes(query) ||
+                          (item.username && item.username.toLowerCase().includes(query)) ||
+                          (item.tags && item.tags.some(t => t.toLowerCase().includes(query))) ||
+                          (item.filename && item.filename.toLowerCase().includes(query));
+      return matchCat && matchSearch;
+    });
+  }
+
+  // Render 3-Pane Adwaita Item List
+  function renderAdwaitaList() {
+    const container = document.getElementById("adwaitaItemsList");
+    const items = getFilteredItems();
+    container.innerHTML = "";
+
+    if (items.length === 0) {
+      container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px 10px; font-size: 12px;">No vault items found matching criteria.</div>`;
+      return;
+    }
+
+    items.forEach(item => {
+      const card = document.createElement("div");
+      card.className = `vault-card ${item.id === selectedItemId ? 'selected' : ''}`;
+      card.onclick = () => selectItem(item.id);
+
+      let iconClass = 'icon-login';
+      let iconSymbol = '🔑';
+      let subText = item.username || item.filename || 'Secure document';
+
+      if (item.type === 'note') { iconClass = 'icon-doc'; iconSymbol = '📝'; subText = 'Markdown Note'; }
+      if (item.type === 'image') { iconClass = 'icon-image'; iconSymbol = '🖼️'; subText = item.filename; }
+      if (item.type === 'file') { iconClass = 'icon-file'; iconSymbol = '📁'; subText = item.filename; }
+
+      card.innerHTML = `
+        <div class="card-top">
+          <div class="card-title-group">
+            <div class="card-icon ${iconClass}">${iconSymbol}</div>
+            <div class="card-title">${escapeHtml(item.title)}</div>
+          </div>
+          <div class="card-quick-actions" onclick="event.stopPropagation()">
+            ${item.username ? `<button class="mini-action-btn" onclick="copyText('${escapeHtml(item.username)}', 'Username')">User</button>` : ''}
+            ${item.password ? `<button class="mini-action-btn" onclick="copyText('${escapeHtml(item.password)}', 'Password')">Pass</button>` : ''}
+          </div>
+        </div>
+        <div class="card-sub">${escapeHtml(subText)}</div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Render 3-Pane Detail & Preview
+  function renderAdwaitaDetail() {
+    const container = document.getElementById("adwaitaDetailPane");
+    const item = vaultItems.find(i => i.id === selectedItemId) || vaultItems[0];
+    if (!item) {
+      container.innerHTML = `<div style="text-align:center; color: var(--text-muted); margin-top: 100px;">Select an item from the list</div>`;
+      return;
+    }
+
+    let iconClass = 'icon-login';
+    let iconSymbol = '🔑';
+    let categoryName = 'Login & Credentials';
+
+    if (item.type === 'note') { iconClass = 'icon-doc'; iconSymbol = '📝'; categoryName = 'Secure Markdown Document'; }
+    if (item.type === 'image') { iconClass = 'icon-image'; iconSymbol = '🖼️'; categoryName = 'Encrypted Photo / Image'; }
+    if (item.type === 'file') { iconClass = 'icon-file'; iconSymbol = '📁'; categoryName = 'Binary File Attachment'; }
+
+    let fieldsHtml = '';
+
+    // Credential Fields
+    if (item.type === 'login') {
+      const isVisible = isPasswordVisible[item.id] || false;
+      fieldsHtml += `
+        <div class="field-card">
+          <div class="field-label">
+            <span>Username / Email</span>
+            <span style="font-size: 10px; color: var(--accent);">Active Account</span>
+          </div>
+          <div class="field-value-row">
+            <span class="field-value">${escapeHtml(item.username)}</span>
+            <div class="field-action-group">
+              <button class="btn-field-action btn-copy" onclick="copyText('${escapeHtml(item.username)}', 'Username')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <div class="field-label">
+            <span>Password (AES-256-GCM Decrypted in RAM)</span>
+            <span style="font-size: 10px; color: #a6adc8;">Strength: 100/100</span>
+          </div>
+          <div class="field-value-row">
+            <span class="field-value ${isVisible ? '' : 'masked'}">${isVisible ? escapeHtml(item.password) : '••••••••••••••••••••'}</span>
+            <div class="field-action-group">
+              <button class="btn-field-action" onclick="togglePassVisibility('${item.id}')">
+                ${isVisible ? 'Hide' : 'Show'}
+              </button>
+              <button class="btn-field-action btn-copy" onclick="copyText('${escapeHtml(item.password)}', 'Password')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+
+        ${item.totp ? `
+        <div class="field-card">
+          <div class="field-label">
+            <span>Two-Factor Authentication (TOTP)</span>
+            <span style="font-size: 10px; color: var(--primary);">Expires in 18s</span>
+          </div>
+          <div class="field-value-row">
+            <span class="field-value" style="color: var(--primary); font-size: 16px; font-weight: bold;">${item.totp}</span>
+            <div class="field-action-group">
+              <button class="btn-field-action btn-copy" onclick="copyText('${item.totp}', 'TOTP Code')">Copy Code</button>
+            </div>
+          </div>
+        </div>` : ''}
+
+        ${item.url ? `
+        <div class="field-card">
+          <div class="field-label">Website URL</div>
+          <div class="field-value-row">
+            <a href="${item.url}" target="_blank" style="color: var(--primary); font-size: 12px; text-decoration: none;">${escapeHtml(item.url)}</a>
+            <button class="btn-field-action" onclick="copyText('${escapeHtml(item.url)}', 'URL')">Copy URL</button>
+          </div>
+        </div>` : ''}
+      `;
+    }
+
+    // Document Preview
+    if (item.type === 'note') {
+      fieldsHtml += `
+        <div class="preview-box">
+          <div class="preview-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>Live Document Preview (Rendered Markdown)</span>
+          </div>
+          <div class="preview-content-doc">
+            ${formatMarkdown(item.content)}
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn-field-action btn-copy" onclick="copyText(\`${escapeHtml(item.content)}\`, 'Document Content')">Copy Full Text</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Image Preview
+    if (item.type === 'image') {
+      fieldsHtml += `
+        <div class="preview-box">
+          <div class="preview-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>Encrypted Image Inspector & Thumbnail Preview</span>
+          </div>
+          <div class="preview-content-image" onclick="openLightbox('${item.id}')" title="Click to open full zoom lightbox">
+            ${item.svgGraphic || '<div style="color:var(--text-muted); font-size: 12px;">Image Rendered</div>'}
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; color: var(--text-muted); background: #181825; padding: 10px; border-radius: 6px;">
+            <div>Filename: <strong style="color:var(--text-main);">${item.filename}</strong></div>
+            <div>Resolution: <strong style="color:var(--text-main);">${item.dimensions}</strong></div>
+            <div>Size: <strong style="color:var(--text-main);">${item.fileSize}</strong></div>
+            <div>Integrity: <strong style="color:var(--accent);">${item.checksum}</strong></div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn-field-action" onclick="openLightbox('${item.id}')">Zoom In</button>
+            <button class="btn-field-action btn-copy" onclick="showToast('Exported decrypted image to ~/Downloads!')">Export Decrypted Image</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Binary File Preview
+    if (item.type === 'file') {
+      fieldsHtml += `
+        <div class="preview-box">
+          <div class="preview-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+            <span>Encrypted Attachment Metadata</span>
+          </div>
+          <div style="background: #181825; padding: 16px; border-radius: 8px; display: flex; align-items: center; gap: 16px;">
+            <div style="font-size: 32px; background: #24273a; width: 56px; height: 56px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">📄</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 600; color: var(--text-main);">${item.filename}</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">File Size: ${item.fileSize} | Checksum: ${item.checksum}</div>
+            </div>
+            <button class="btn-primary" onclick="showToast('Decrypted & saved to ~/Downloads/${item.filename}')">
+              Download File
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="detail-header">
+        <div class="detail-title-block">
+          <div class="detail-large-icon ${iconClass}">${iconSymbol}</div>
+          <div>
+            <h2 class="detail-heading">${escapeHtml(item.title)}</h2>
+            <div class="detail-category-tag">
+              <span>${categoryName}</span>
+              <span>•</span>
+              <span>Synced with Google Drive</span>
+              <span>•</span>
+              <span>${item.updatedAt}</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <button class="btn-field-action" onclick="deleteItem('${item.id}')" style="color: var(--danger);">Delete</button>
+        </div>
+      </div>
+
+      <div class="sync-banner">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          <span>Cloud Sync Status: <strong>Synced in Google Drive (AES-256)</strong></span>
+        </div>
+        <button class="mini-action-btn" onclick="triggerDriveSync()">Force Sync</button>
+      </div>
+
+      ${fieldsHtml}
+
+      ${item.notes ? `
+      <div class="field-card">
+        <div class="field-label">Additional Notes / Remarks</div>
+        <div class="field-value" style="font-size: 12px; color: var(--text-muted);">${escapeHtml(item.notes)}</div>
+      </div>` : ''}
+    `;
+  }
+
+  // Render Variant 2: Card Launcher Grid
+  function renderLauncherGrid() {
+    const container = document.getElementById("launcherCardsGrid");
+    const items = getFilteredItems();
+    container.innerHTML = "";
+
+    items.forEach(item => {
+      const card = document.createElement("div");
+      card.className = "launcher-card";
+      let icon = item.type === 'login' ? '🔑' : item.type === 'note' ? '📝' : item.type === 'image' ? '🖼️' : '📁';
+
+      card.innerHTML = `
+        <div class="launcher-card-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>${icon}</span>
+            <strong style="font-size: 13px;">${escapeHtml(item.title)}</strong>
+          </div>
+          <span style="font-size: 10px; background: #313244; padding: 2px 6px; border-radius: 4px; color: var(--text-muted);">${item.type}</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-code); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${escapeHtml(item.username || item.filename || 'Encrypted Item')}
+        </div>
+        <div class="launcher-actions">
+          ${item.username ? `<button class="launcher-btn" onclick="copyText('${escapeHtml(item.username)}', 'Username')">Copy User</button>` : ''}
+          ${item.password ? `<button class="launcher-btn" onclick="copyText('${escapeHtml(item.password)}', 'Password')">Copy Pass</button>` : ''}
+          ${item.type === 'image' || item.type === 'note' ? `<button class="launcher-btn" onclick="switchLayout('adwaita'); selectItem('${item.id}');">Preview</button>` : ''}
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Render Variant 3: Nord Cyber Terminal Table
+  function renderNordTable() {
+    const tbody = document.getElementById("nordTableBody");
+    const items = getFilteredItems();
+    tbody.innerHTML = "";
+
+    items.forEach((item, index) => {
+      const tr = document.createElement("tr");
+      tr.onclick = () => { switchLayout('adwaita'); selectItem(item.id); };
+      tr.innerHTML = `
+        <td style="color: #5e81ac;">0x${(index + 1).toString(16).padStart(2, '0')}</td>
+        <td><span class="nord-badge">${item.type.toUpperCase()}</span></td>
+        <td style="font-weight: bold; color: #eceff4;">${escapeHtml(item.title)}</td>
+        <td style="color: #d8dee9;">${escapeHtml(item.username || item.filename || '---')}</td>
+        <td>
+          <div style="display: flex; gap: 4px;" onclick="event.stopPropagation()">
+            ${item.username ? `<button class="mini-action-btn" onclick="copyText('${escapeHtml(item.username)}', 'User')">USER</button>` : ''}
+            ${item.password ? `<button class="mini-action-btn" onclick="copyText('${escapeHtml(item.password)}', 'Pass')">PASS</button>` : ''}
+          </div>
+        </td>
+        <td style="color: #a3be8c; font-size: 11px;">GDRIVE:OK_AES256</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderAllViews() {
+    renderAdwaitaList();
+    renderAdwaitaDetail();
+    renderLauncherGrid();
+    renderNordTable();
+    updateBadges();
+  }
+
+  function selectItem(id) {
+    selectedItemId = id;
+    renderAdwaitaList();
+    renderAdwaitaDetail();
+  }
+
+  function filterCategory(cat, el) {
+    activeCategory = cat;
+    document.querySelectorAll(".sidebar .nav-item").forEach(item => item.classList.remove("active"));
+    if (el) el.classList.add("active");
+    renderAllViews();
+  }
+
+  function filterTag(tagName) {
+    searchQuery = tagName;
+    document.getElementById("adwaitaSearchInput").value = tagName;
+    renderAllViews();
+  }
+
+  function handleSearch(q) {
+    searchQuery = q;
+    renderAllViews();
+  }
+
+  function handleLauncherSearch(q) {
+    searchQuery = q;
+    renderLauncherGrid();
+  }
+
+  function togglePassVisibility(id) {
+    isPasswordVisible[id] = !isPasswordVisible[id];
+    renderAdwaitaDetail();
+  }
+
+  // Copy with fallback & Toast
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    } else {
+      const temp = document.createElement("textarea");
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand("copy");
+      document.body.removeChild(temp);
+    }
+    showToast(`Copied ${label} to clipboard!`);
+  }
+
+  function showToast(msg) {
+    const container = document.getElementById("toastContainer");
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      <span>${escapeHtml(msg)}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      toast.style.transition = 'all 0.2s';
+      setTimeout(() => toast.remove(), 200);
+    }, 2200);
+  }
+
+  // Google Drive Sync Simulation
+  function triggerDriveSync() {
+    const dot = document.getElementById("gdriveStatusDot");
+    const text = document.getElementById("gdriveStatusText");
+    dot.className = "gdrive-status-dot syncing";
+    text.textContent = "Encrypting local state...";
+    showToast("Beginning Google Drive sync...");
+
+    setTimeout(() => {
+      text.textContent = "Uploading to Drive /appDataFolder...";
+    }, 900);
+
+    setTimeout(() => {
+      dot.className = "gdrive-status-dot";
+      text.textContent = "Google Drive: Synced (Just now)";
+      showToast("Google Drive Sync completed: 6 objects updated.");
+    }, 2000);
+  }
+
+  // Lock Vault
+  function toggleLockVault() {
+    document.getElementById("lockScreen").classList.add("locked");
+    showToast("Vault locked.");
+  }
+  function unlockVault() {
+    document.getElementById("lockScreen").classList.remove("locked");
+    showToast("Vault unlocked with master key.");
+  }
+
+  // Modal logic
+  function openNewItemModal() {
+    document.getElementById("newItemModal").classList.add("open");
+  }
+  function closeNewItemModal() {
+    document.getElementById("newItemModal").classList.remove("open");
+  }
+
+  function updateNewItemFormFields(type) {
+    const container = document.getElementById("dynamicFormFields");
+    if (type === 'login') {
+      container.innerHTML = `
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Username / Email</label>
+          <input type="text" class="form-input" id="newUserField" placeholder="e.g. user@example.com">
+        </div>
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Password / Secret</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="password" class="form-input" id="newPassField" placeholder="Enter password" style="flex: 1;">
+            <button type="button" class="btn-field-action" onclick="generateRandomPass()">Generate</button>
+          </div>
+        </div>
+      `;
+    } else if (type === 'note') {
+      container.innerHTML = `
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Markdown / Text Content</label>
+          <textarea class="form-textarea" id="newNoteContent" placeholder="# My Secure Note..."></textarea>
+        </div>
+      `;
+    } else if (type === 'image') {
+      container.innerHTML = `
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">Image File (Simulation)</label>
+          <input type="text" class="form-input" id="newImgName" placeholder="passport_scan.png">
+        </div>
+      `;
+    } else {
+      container.innerHTML = `
+        <div class="form-group" style="margin-top: 8px;">
+          <label class="form-label">File Attachment Name</label>
+          <input type="text" class="form-input" id="newFileName" placeholder="backup_keys.tar.gz">
+        </div>
+      `;
+    }
+  }
+
+  function generateRandomPass() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+    let pass = "";
+    for (let i = 0; i < 20; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    const input = document.getElementById("newPassField");
+    if (input) {
+      input.value = pass;
+      input.type = "text";
+      showToast("Generated strong 20-char password!");
+    }
+  }
+
+  function saveNewItem() {
+    const type = document.getElementById("newTypeSelect").value;
+    const title = document.getElementById("newTitleInput").value.trim() || "Untitled Item";
+    const tags = document.getElementById("newTagsInput").value.split(",").map(t => t.trim()).filter(Boolean);
+
+    const newItem = {
+      id: "vault-" + Date.now(),
+      type: type,
+      title: title,
+      tags: tags.length ? tags : ["general"],
+      updatedAt: "2026-11-22 17:50"
+    };
+
+    if (type === 'login') {
+      newItem.username = document.getElementById("newUserField")?.value || "user";
+      newItem.password = document.getElementById("newPassField")?.value || "pass";
+    } else if (type === 'note') {
+      newItem.content = document.getElementById("newNoteContent")?.value || "Empty note";
+    } else if (type === 'image') {
+      newItem.filename = document.getElementById("newImgName")?.value || "image.png";
+      newItem.dimensions = "1200 x 800 px";
+      newItem.fileSize = "820 KB";
+      newItem.checksum = "sha256:4a5b6c...";
+      newItem.svgGraphic = `<svg width="240" height="150" viewBox="0 0 240 150" fill="none"><rect width="240" height="150" rx="8" fill="#1e1e2e" stroke="#f9e2af"/><circle cx="120" cy="75" r="30" fill="#f9e2af" opacity="0.3"/><text x="75" y="80" fill="#f9e2af" font-size="12">ENCRYPTED MEDIA</text></svg>`;
+    } else {
+      newItem.filename = document.getElementById("newFileName")?.value || "file.bin";
+      newItem.fileSize = "512 KB";
+      newItem.checksum = "sha256:7c8d9e...";
+    }
+
+    vaultItems.unshift(newItem);
+    selectedItemId = newItem.id;
+    closeNewItemModal();
+    renderAllViews();
+    showToast(`Added '${title}' and queued for Google Drive sync.`);
+  }
+
+  function deleteItem(id) {
+    const idx = vaultItems.findIndex(i => i.id === id);
+    if (idx !== -1) {
+      const title = vaultItems[idx].title;
+      vaultItems.splice(idx, 1);
+      if (vaultItems.length > 0) selectedItemId = vaultItems[0].id;
+      renderAllViews();
+      showToast(`Removed '${title}' from vault.`);
+    }
+  }
+
+  // Lightbox
+  function openLightbox(id) {
+    const item = vaultItems.find(i => i.id === id);
+    if (!item) return;
+    const content = document.getElementById("lightboxContent");
+    content.innerHTML = item.svgGraphic || '<div>Image preview</div>';
+    document.getElementById("lightboxModal").classList.add("open");
+  }
+  function closeLightbox() {
+    document.getElementById("lightboxModal").classList.remove("open");
+  }
+
+  function updateBadges() {
+    document.getElementById("badgeAll").textContent = vaultItems.length;
+    document.getElementById("badgeLogin").textContent = vaultItems.filter(i => i.type === 'login').length;
+    document.getElementById("badgeNote").textContent = vaultItems.filter(i => i.type === 'note').length;
+    document.getElementById("badgeImage").textContent = vaultItems.filter(i => i.type === 'image').length;
+    document.getElementById("badgeFile").textContent = vaultItems.filter(i => i.type === 'file').length;
+  }
+
+  function formatMarkdown(text) {
+    if (!text) return "";
+    return text
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/^# (.*$)/gim, '<h4>$1</h4>')
+      .replace(/^\[(.*)\]/gim, '<strong style="color:var(--primary)">[$1]</strong>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br>');
+  }
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  // Initialize
+  renderAllViews();
+</script>
+
+</body>
+</html>
