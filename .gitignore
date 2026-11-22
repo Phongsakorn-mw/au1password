@@ -1,0 +1,6 @@
+/target/
+**/*.rs.bk
+*.tmp
+*.bak
+.DS_Store
+*.enc
