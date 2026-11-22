@@ -6,6 +6,7 @@
   <title>OtterVault - Linux Personal Cloud-Sync Vault</title>
   <style>
     :root {
+      color-scheme: dark;
       --bg: #181825;
       --card-bg: #1e1e2e;
       --card-fg: #cdd6f4;
@@ -32,6 +33,7 @@
 
     /* Light Theme override */
     body.theme-light {
+      color-scheme: light;
       --bg: #eff1f5;
       --card-bg: #e6e9ef;
       --card-fg: #4c4f69;
@@ -48,6 +50,7 @@
 
     /* Nord Cyber Theme override */
     body.theme-nord {
+      color-scheme: dark;
       --bg: #2e3440;
       --card-bg: #3b4252;
       --card-fg: #eceff4;
@@ -62,6 +65,7 @@
 
     /* OLED Black Theme override */
     body.theme-oled {
+      color-scheme: dark;
       --bg: #000000;
       --card-bg: #0a0a0c;
       --card-fg: #ffffff;
@@ -75,17 +79,28 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
+    button, input, select, textarea {
+      font-family: inherit;
+      touch-action: manipulation;
+    }
+
     body {
       font-family: var(--font-ui);
       background-color: var(--bg);
       color: var(--text-main);
       padding: 12px;
-      height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       user-select: none;
       -webkit-font-smoothing: antialiased;
+      touch-action: manipulation;
     }
 
     .app-window {
@@ -147,13 +162,13 @@
       color: var(--text-muted);
       font-size: 11px;
       font-weight: 600;
-      padding: 5px 12px;
+      padding: 5px 10px;
       border-radius: 4px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     }
     .switcher-btn.active {
       background: var(--primary);
@@ -178,7 +193,7 @@
       font-size: 11px;
       color: var(--text-muted);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: border-color 0.15s ease, color 0.15s ease;
     }
     .gdrive-pill:hover {
       border-color: var(--primary);
@@ -205,14 +220,16 @@
       background: transparent;
       border: 1px solid transparent;
       color: var(--text-muted);
-      width: 32px;
-      height: 32px;
+      width: 34px;
+      height: 34px;
+      min-width: 34px;
+      min-height: 34px;
       border-radius: var(--radius-sm);
       display: inline-flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
     .btn-icon:hover {
       background: var(--surface);
@@ -224,7 +241,8 @@
       background: var(--primary);
       color: var(--primary-fg);
       border: none;
-      padding: 6px 12px;
+      padding: 7px 12px;
+      min-height: 34px;
       border-radius: var(--radius-sm);
       font-size: 12px;
       font-weight: 600;
@@ -232,7 +250,7 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: opacity 0.15s;
+      transition: opacity 0.15s ease;
     }
     .btn-primary:hover { opacity: 0.9; }
 
@@ -282,7 +300,7 @@
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease;
     }
     .nav-item:hover { background: var(--surface); color: var(--text-main); }
     .nav-item.active { background: #313244; color: var(--primary); font-weight: 600; }
@@ -374,7 +392,7 @@
       background: #181825;
       border: 1px solid var(--surface-border);
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -482,10 +500,175 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
     .btn-field-action:hover { background: var(--surface-border); color: var(--text-main); }
     .btn-field-action.btn-copy:hover { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+
+    /* Mobile Navigation & Adaptive Components */
+    .mobile-nav-toggle { display: none; }
+    .sidebar-backdrop { display: none; }
+    .mobile-detail-bar { display: none; margin-bottom: 12px; }
+    .mobile-back-btn {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .mobile-back-btn:hover { background: var(--surface-border); }
+
+    /* ============================================================ */
+    /* VARIANT 2: COMPACT CARD LAUNCHER (Responsive Grid) */
+    /* ============================================================ */
+    .layout-launcher {
+      display: none;
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      padding: 16px;
+      flex-direction: column;
+      gap: 14px;
+      overscroll-behavior: contain;
+    }
+    .launcher-search-hero {
+      background: #11111b;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    .launcher-search-hero input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-size: 14px;
+      outline: none;
+    }
+    .launcher-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .launcher-card {
+      background: #181825;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+      cursor: pointer;
+    }
+    .launcher-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .launcher-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .launcher-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .launcher-btn {
+      flex: 1;
+      background: #24273a;
+      border: 1px solid var(--surface-border);
+      color: var(--text-main);
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+    .launcher-btn:hover {
+      background: var(--primary);
+      color: var(--primary-fg);
+    }
+
+    /* ============================================================ */
+    /* VARIANT 3: NORD CYBER TERMINAL STYLE (High Density) */
+    /* ============================================================ */
+    .layout-nord {
+      display: none;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      background: #2e3440;
+      color: #eceff4;
+      font-family: var(--font-code);
+      overflow: hidden;
+    }
+    .nord-topbar {
+      background: #242933;
+      padding: 8px 14px;
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #434c5e;
+      color: #88c0d0;
+    }
+    .nord-table-container {
+      flex: 1;
+      padding: 10px;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+    .nord-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 580px;
+    }
+    .nord-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: #81a1c1;
+      border-bottom: 1px solid #4c566a;
+      font-weight: 600;
+    }
+    .nord-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #3b4252;
+    }
+    .nord-table tr:hover { background: #3b4252; cursor: pointer; }
+    .nord-badge {
+      background: #434c5e;
+      color: #88c0d0;
+      padding: 2px 5px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .mini-action-btn {
+      background: #434c5e;
+      border: 1px solid #4c566a;
+      color: #eceff4;
+      padding: 3px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    .mini-action-btn:hover { background: #88c0d0; color: #2e3440; }
 
     /* Modals */
     .modal-backdrop {
@@ -496,13 +679,15 @@
       display: none;
       align-items: center;
       justify-content: center;
+      padding: 12px;
       z-index: 1000;
+      overscroll-behavior: contain;
     }
     .modal-backdrop.open { display: flex; }
 
     .modal-card {
-      width: 620px;
-      max-height: 85vh;
+      width: min(620px, calc(100vw - 24px));
+      max-height: 88dvh;
       background: var(--card-bg);
       border: 1px solid var(--surface-border);
       border-radius: var(--radius);
@@ -510,6 +695,7 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      overscroll-behavior: contain;
     }
 
     .modal-header {
@@ -519,22 +705,29 @@
       align-items: center;
       justify-content: space-between;
       background: #11111b;
+      flex-shrink: 0;
     }
-    .modal-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .modal-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; text-wrap: balance; }
 
     /* Settings Tabs */
     .settings-nav {
       display: flex;
       border-bottom: 1px solid var(--surface-border);
       background: #181825;
-      padding: 0 12px;
-      gap: 4px;
+      padding: 0 10px;
+      gap: 2px;
+      overflow-x: auto;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      flex-shrink: 0;
     }
+    .settings-nav::-webkit-scrollbar { display: none; }
     .settings-tab-btn {
       background: transparent;
       border: none;
       border-bottom: 2px solid transparent;
-      padding: 10px 14px;
+      padding: 10px 12px;
       color: var(--text-muted);
       font-size: 12px;
       font-weight: 600;
@@ -542,6 +735,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-shrink: 0;
     }
     .settings-tab-btn.active {
       color: var(--primary);
@@ -549,12 +743,13 @@
     }
 
     .settings-tab-content {
-      padding: 18px;
+      padding: 16px;
       overflow-y: auto;
       flex: 1;
       display: flex;
       flex-direction: column;
       gap: 14px;
+      overscroll-behavior: contain;
     }
 
     .form-group { display: flex; flex-direction: column; gap: 5px; }
@@ -622,7 +817,148 @@
       z-index: 500;
     }
     .lock-screen-overlay.locked { display: flex; }
-    .lock-box { width: 340px; text-align: center; display: flex; flex-direction: column; gap: 14px; }
+    .lock-box { width: min(340px, calc(100vw - 32px)); text-align: center; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ============================================================ */
+    /* RESPONSIVE BREAKPOINTS */
+    /* ============================================================ */
+
+    /* Tablet breakpoint (<= 960px) */
+    @media (max-width: 960px) {
+      .sidebar { width: 200px; }
+      .item-list-pane { width: 280px; }
+      .detail-pane { padding: 16px; }
+    }
+
+    /* Mobile master-detail & off-canvas drawer (<= 768px) */
+    @media (max-width: 768px) {
+      body {
+        padding: 0;
+      }
+      .app-window {
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+      }
+      .headerbar {
+        padding: 0 8px;
+        gap: 6px;
+      }
+      .window-controls-left .win-btn {
+        display: none;
+      }
+      .mobile-nav-toggle {
+        display: inline-flex;
+      }
+      .app-branding span#daemonStatusBadge {
+        display: none;
+      }
+
+      /* Off-canvas sidebar */
+      .sidebar-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(2px);
+        z-index: 95;
+        display: none;
+      }
+      .sidebar-backdrop.open {
+        display: block;
+      }
+      .sidebar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(280px, 80vw);
+        z-index: 100;
+        background: #181825;
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
+      }
+      .sidebar.open {
+        transform: translateX(0);
+      }
+
+      /* Master-Detail Single-Pane View Switching */
+      .layout-adwaita {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      .item-list-pane {
+        width: 100%;
+        border-right: none;
+        flex: 1;
+        display: flex;
+      }
+      .detail-pane {
+        display: none;
+        width: 100%;
+        flex: 1;
+        padding: 14px;
+      }
+      .layout-adwaita.detail-active .item-list-pane {
+        display: none;
+      }
+      .layout-adwaita.detail-active .detail-pane {
+        display: flex;
+      }
+      .mobile-detail-bar {
+        display: flex;
+      }
+
+      /* Compact header elements */
+      .gdrive-pill span#gdriveStatusText {
+        display: none;
+      }
+      .gdrive-pill {
+        padding: 6px 8px;
+      }
+      .btn-primary span.btn-primary-text {
+        display: none;
+      }
+      .btn-primary {
+        padding: 7px 10px;
+      }
+      .switcher-btn span.switcher-label {
+        display: none;
+      }
+      .switcher-btn {
+        padding: 6px 8px;
+      }
+    }
+
+    /* Small Phone Screens (<= 480px) */
+    @media (max-width: 480px) {
+      .app-branding span {
+        display: none;
+      }
+      .settings-toggle-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .field-value-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .field-value-row .btn-field-action {
+        align-self: flex-end;
+      }
+    }
+
+    /* Accessibility: Prefers Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -631,9 +967,12 @@
   <!-- Headerbar -->
   <header class="headerbar">
     <div class="window-controls-left">
-      <span class="win-btn win-close" title="Close"></span>
-      <span class="win-btn win-min" title="Minimize"></span>
-      <span class="win-btn win-max" title="Maximize"></span>
+      <button class="btn-icon mobile-nav-toggle" id="btnMobileNavToggle" onclick="toggleMobileSidebar()" aria-label="Toggle navigation menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <span class="win-btn win-close" title="Close" aria-label="Close window"></span>
+      <span class="win-btn win-min" title="Minimize" aria-label="Minimize window"></span>
+      <span class="win-btn win-max" title="Maximize" aria-label="Maximize window"></span>
       <div class="app-branding" style="margin-left: 8px;">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
@@ -646,24 +985,24 @@
 
     <!-- Layout Switcher -->
     <div class="design-switcher">
-      <button class="switcher-btn active" id="btnModeAdwaita" onclick="switchLayout('adwaita')">
+      <button class="switcher-btn active" id="btnModeAdwaita" onclick="switchLayout('adwaita')" aria-label="3-Pane Layout">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>
-        3-Pane
+        <span class="switcher-label">3-Pane</span>
       </button>
-      <button class="switcher-btn" id="btnModeLauncher" onclick="switchLayout('launcher')">
+      <button class="switcher-btn" id="btnModeLauncher" onclick="switchLayout('launcher')" aria-label="Cards Layout">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Cards
+        <span class="switcher-label">Cards</span>
       </button>
-      <button class="switcher-btn" id="btnModeNord" onclick="switchLayout('nord')">
+      <button class="switcher-btn" id="btnModeNord" onclick="switchLayout('nord')" aria-label="Nord Terminal Layout">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-        Nord
+        <span class="switcher-label">Nord</span>
       </button>
     </div>
 
     <!-- Right Header Actions -->
     <div class="header-actions">
       <!-- Google Drive Sync Button / Status -->
-      <div class="gdrive-pill" id="gdrivePill" onclick="triggerDriveSync()" title="Click to trigger Google Drive Sync">
+      <div class="gdrive-pill" id="gdrivePill" onclick="triggerDriveSync()" title="Click to trigger Google Drive Sync" aria-label="Google Drive sync status">
         <span class="gdrive-status-dot" id="gdriveStatusDot"></span>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
@@ -671,20 +1010,20 @@
         <span id="gdriveStatusText">Drive: Ready</span>
       </div>
 
-      <button class="btn-primary" onclick="openNewItemModal()">
+      <button class="btn-primary" onclick="openNewItemModal()" aria-label="Create new vault item">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>New Item</span>
+        <span class="btn-primary-text">New Item</span>
       </button>
 
       <!-- Settings Configuration Button (Gear) -->
-      <button class="btn-icon" onclick="openSettingsModal()" title="App & Cloud Configuration Settings">
+      <button class="btn-icon" onclick="openSettingsModal()" title="App & Cloud Configuration Settings" aria-label="App & Cloud Configuration Settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="12" cy="12" r="3"></circle>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
         </svg>
       </button>
 
-      <button class="btn-icon" onclick="toggleLockVault()" title="Lock Vault">
+      <button class="btn-icon" onclick="toggleLockVault()" title="Lock Vault" aria-label="Lock Vault">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </button>
     </div>
@@ -698,7 +1037,7 @@
       </div>
       <h3 style="font-size: 16px; font-weight: 600;">OtterVault Locked</h3>
       <p style="font-size: 12px; color: var(--text-muted);">Enter master password to decrypt your zero-knowledge vault.</p>
-      <input type="password" id="masterPassInput" class="form-input" placeholder="Master Password" value="test_master_pass_123" style="text-align: center;">
+      <input type="password" id="masterPassInput" class="form-input" placeholder="Master Password" value="test_master_pass_123" style="text-align: center;" autocomplete="current-password" spellcheck="false">
       <button class="btn-primary" onclick="unlockVault()" style="justify-content: center;">
         <span>Unlock Vault</span>
       </button>
@@ -707,9 +1046,12 @@
 
   <!-- Vault Main Container -->
   <div class="vault-container">
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeMobileSidebar()"></div>
+
     <!-- 3-Pane Adwaita Layout -->
     <div class="layout-adwaita" id="layoutAdwaita">
-      <aside class="sidebar">
+      <aside class="sidebar" id="appSidebar">
         <div class="nav-group-title">Vault Categories</div>
         <ul class="nav-list">
           <li class="nav-item active" onclick="filterCategory('all', this)">
@@ -760,11 +1102,11 @@
       </aside>
 
       <!-- Middle Pane: Item List -->
-      <section class="item-list-pane">
+      <section class="item-list-pane" id="adwaitaListPane">
         <div class="list-toolbar">
           <div class="search-box">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" id="adwaitaSearchInput" placeholder="Search logins, notes, files..." oninput="handleSearch(this.value)">
+            <input type="text" class="search-input" id="adwaitaSearchInput" placeholder="Search logins, notes, files…" oninput="handleSearch(this.value)" autocomplete="off" spellcheck="false" aria-label="Search logins, notes, files">
           </div>
         </div>
         <div class="items-scroll" id="adwaitaItemsList"></div>
@@ -772,6 +1114,37 @@
 
       <!-- Right Pane: Detail & Preview -->
       <main class="detail-pane" id="adwaitaDetailPane"></main>
+    </div>
+
+    <!-- VARIANT 2: COMPACT CARD LAUNCHER (Responsive Grid) -->
+    <div class="layout-launcher" id="layoutLauncher" style="display: none;">
+      <div class="launcher-search-hero">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Type to search and quick-copy…" id="launcherSearchInput" oninput="handleLauncherSearch(this.value)" autocomplete="off" spellcheck="false" aria-label="Search items">
+      </div>
+      <div class="launcher-grid" id="launcherCardsGrid"></div>
+    </div>
+
+    <!-- VARIANT 3: NORD CYBER TERMINAL -->
+    <div class="layout-nord" id="layoutNord" style="display: none;">
+      <div class="nord-topbar">
+        <span>VAULT STATUS: [ENCRYPTED] // CIPHER: AES-256-GCM</span>
+        <span id="nordCounter">0 ITEMS LOADED</span>
+      </div>
+      <div class="nord-table-container">
+        <table class="nord-table">
+          <thead>
+            <tr>
+              <th scope="col">ID</th>
+              <th scope="col">TYPE</th>
+              <th scope="col">TITLE</th>
+              <th scope="col">ACCOUNT / FILE</th>
+              <th scope="col">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="nordTableBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -786,7 +1159,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span>OtterVault Configuration</span>
       </div>
-      <button class="btn-icon" onclick="closeSettingsModal()">&times;</button>
+      <button class="btn-icon" onclick="closeSettingsModal()" aria-label="Close settings dialog">&times;</button>
     </div>
 
     <!-- Navigation Tabs -->
@@ -826,7 +1199,7 @@
 
       <div class="form-group">
         <label class="form-label">Google OAuth 2.0 Client Secret (For Web/Desktop credentials)</label>
-        <input type="password" class="form-input" id="cfgGDriveClientSecret" placeholder="GOCSPX-...">
+        <input type="password" class="form-input" id="cfgGDriveClientSecret" placeholder="GOCSPX-…" autocomplete="off" spellcheck="false">
       </div>
 
       <div class="form-group">
@@ -989,10 +1362,10 @@
 
 <!-- Add/Edit Item Modal -->
 <div class="modal-backdrop" id="newItemModal">
-  <div class="modal-card" style="width: 480px;">
+  <div class="modal-card" style="width: min(480px, calc(100vw - 24px));">
     <div class="modal-header">
       <div class="modal-title" id="itemModalTitle">Add New Vault Item</div>
-      <button class="btn-icon" onclick="closeNewItemModal()">&times;</button>
+      <button class="btn-icon" onclick="closeNewItemModal()" aria-label="Close new item dialog">&times;</button>
     </div>
     <div style="padding: 18px; display: flex; flex-direction: column; gap: 12px;">
       <div class="form-group">
@@ -1022,7 +1395,7 @@
         </div>
         <div class="form-group" style="margin-top: 8px;">
           <label class="form-label">URL (Optional)</label>
-          <input type="text" class="form-input" id="newUrlField" placeholder="https://...">
+          <input type="url" class="form-input" id="newUrlField" placeholder="https://…" autocomplete="url">
         </div>
       </div>
       <div class="form-group">
@@ -1039,13 +1412,13 @@
 
 <!-- Google OAuth Progress & Fallback Modal -->
 <div class="modal-backdrop" id="oauthModal">
-  <div class="modal-card" style="width: 480px;">
+  <div class="modal-card" style="width: min(480px, calc(100vw - 24px));">
     <div class="modal-header">
       <div class="modal-title">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
         <span>Google Account Authorization</span>
       </div>
-      <button class="btn-icon" onclick="closeOAuthModal()">&times;</button>
+      <button class="btn-icon" onclick="closeOAuthModal()" aria-label="Close authorization dialog">&times;</button>
     </div>
     <div style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
       <p style="font-size: 13px; color: var(--text-main); line-height: 1.5;">
@@ -1062,7 +1435,7 @@
       </div>
       <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--accent);">
         <span class="gdrive-status-dot syncing"></span>
-        <span id="oauthStatusText">Waiting for Google authorization callback...</span>
+        <span id="oauthStatusText">Waiting for Google authorization callback…</span>
       </div>
       <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
         <button class="btn-field-action" onclick="closeOAuthModal()">Close</button>
@@ -1290,9 +1663,9 @@
       if (data.auth_url) {
         currentAuthUrl = data.auth_url;
         document.getElementById('oauthExternalBtn').href = currentAuthUrl;
-        document.getElementById('oauthStatusText').textContent = "Waiting for Google authorization callback...";
+        document.getElementById('oauthStatusText').textContent = "Waiting for Google authorization callback…";
         document.getElementById('oauthModal').classList.add('open');
-        showToast("Opening Google Sign-In in browser...");
+        showToast("Opening Google Sign-In in browser…");
 
         // Also try window.open as backup
         try { window.open(currentAuthUrl, '_blank'); } catch (e) {}
@@ -1350,8 +1723,8 @@
     const dot = document.getElementById("gdriveStatusDot");
     const text = document.getElementById("gdriveStatusText");
     dot.className = "gdrive-status-dot syncing";
-    text.textContent = "Syncing Drive...";
-    showToast("Starting real Google Drive sync...");
+    text.textContent = "Syncing Drive…";
+    showToast("Starting real Google Drive sync…");
 
     try {
       const res = await fetch('/api/gdrive/sync', { method: 'POST' });
@@ -1432,14 +1805,14 @@
         </div>
         <div class="form-group" style="margin-top: 8px;">
           <label class="form-label">URL (Optional)</label>
-          <input type="text" class="form-input" id="newUrlField" placeholder="https://...">
+          <input type="url" class="form-input" id="newUrlField" placeholder="https://…" autocomplete="url">
         </div>
       `;
     } else if (type === 'note') {
       container.innerHTML = `
         <div class="form-group">
           <label class="form-label">Note / Markdown Content</label>
-          <textarea class="form-textarea" id="newNoteContent" style="min-height: 100px;" placeholder="# Important secret notes..."></textarea>
+          <textarea class="form-textarea" id="newNoteContent" style="min-height: 100px;" placeholder="# Important secret notes…" spellcheck="false"></textarea>
         </div>
       `;
     } else if (type === 'image') {
@@ -1492,10 +1865,67 @@
     }, 2200);
   }
 
+  // Layout Switcher & Responsive State
+  let currentLayout = 'adwaita';
+
+  function switchLayout(layoutName) {
+    currentLayout = layoutName;
+    document.getElementById("btnModeAdwaita")?.classList.toggle("active", layoutName === 'adwaita');
+    document.getElementById("btnModeLauncher")?.classList.toggle("active", layoutName === 'launcher');
+    document.getElementById("btnModeNord")?.classList.toggle("active", layoutName === 'nord');
+
+    const adwaitaEl = document.getElementById("layoutAdwaita");
+    const launcherEl = document.getElementById("layoutLauncher");
+    const nordEl = document.getElementById("layoutNord");
+
+    if (adwaitaEl) adwaitaEl.style.display = (layoutName === 'adwaita') ? 'flex' : 'none';
+    if (launcherEl) launcherEl.style.display = (layoutName === 'launcher') ? 'flex' : 'none';
+    if (nordEl) nordEl.style.display = (layoutName === 'nord') ? 'flex' : 'none';
+
+    renderAllViews();
+  }
+
+  // Mobile Navigation (Off-Canvas Drawer)
+  function toggleMobileSidebar() {
+    const sidebar = document.getElementById("appSidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (!sidebar || !backdrop) return;
+    const isOpen = sidebar.classList.toggle("open");
+    backdrop.classList.toggle("open", isOpen);
+  }
+
+  function closeMobileSidebar() {
+    const sidebar = document.getElementById("appSidebar");
+    const backdrop = document.getElementById("sidebarBackdrop");
+    if (sidebar) sidebar.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("open");
+  }
+
+  // Mobile Master-Detail Single-Pane View
+  function showMobileDetail() {
+    const layout = document.getElementById("layoutAdwaita");
+    if (layout) layout.classList.add("detail-active");
+  }
+
+  function hideMobileDetail() {
+    const layout = document.getElementById("layoutAdwaita");
+    if (layout) layout.classList.remove("detail-active");
+  }
+
+  function selectItem(id) {
+    selectedItemId = id;
+    renderAllViews();
+    if (window.innerWidth <= 768) {
+      showMobileDetail();
+    }
+  }
+
   function filterCategory(cat, el) {
     activeCategory = cat;
     document.querySelectorAll(".sidebar .nav-item").forEach(item => item.classList.remove("active"));
     if (el) el.classList.add("active");
+    closeMobileSidebar();
+    hideMobileDetail();
     renderAllViews();
   }
 
@@ -1504,30 +1934,47 @@
     renderAllViews();
   }
 
+  function handleLauncherSearch(q) {
+    searchQuery = q.toLowerCase();
+    renderAllViews();
+  }
+
+  function getFilteredItems() {
+    return vaultItems.filter(item => {
+      const type = item.type || item.payload?.kind || 'login';
+      const matchCat = (activeCategory === 'all') || (type === activeCategory);
+      const title = (item.title || "").toLowerCase();
+      const user = (item.username || item.payload?.data?.username || "").toLowerCase();
+      const matchQuery = !searchQuery || title.includes(searchQuery) || user.includes(searchQuery);
+      return matchCat && matchQuery;
+    });
+  }
+
   function renderAllViews() {
     renderAdwaitaList();
     renderAdwaitaDetail();
+    renderLauncherGrid();
+    renderNordTable();
     updateBadges();
   }
 
   function updateBadges() {
-    document.getElementById('badgeAll').textContent = vaultItems.length;
-    document.getElementById('badgeLogin').textContent = vaultItems.filter(i => (i.type === 'login' || i.payload?.kind === 'login')).length;
-    document.getElementById('badgeNote').textContent = vaultItems.filter(i => (i.type === 'note' || i.payload?.kind === 'note')).length;
-    document.getElementById('badgeImage').textContent = vaultItems.filter(i => (i.type === 'image' || i.payload?.kind === 'image')).length;
-    document.getElementById('badgeFile').textContent = vaultItems.filter(i => (i.type === 'file' || i.payload?.kind === 'file')).length;
+    const setBadge = (id, count) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = count;
+    };
+    setBadge('badgeAll', vaultItems.length);
+    setBadge('badgeLogin', vaultItems.filter(i => (i.type === 'login' || i.payload?.kind === 'login')).length);
+    setBadge('badgeNote', vaultItems.filter(i => (i.type === 'note' || i.payload?.kind === 'note')).length);
+    setBadge('badgeImage', vaultItems.filter(i => (i.type === 'image' || i.payload?.kind === 'image')).length);
+    setBadge('badgeFile', vaultItems.filter(i => (i.type === 'file' || i.payload?.kind === 'file')).length);
   }
 
   function renderAdwaitaList() {
     const container = document.getElementById("adwaitaItemsList");
+    if (!container) return;
     container.innerHTML = "";
-    const filtered = vaultItems.filter(item => {
-      const type = item.type || item.payload?.kind || 'login';
-      const matchCat = (activeCategory === 'all') || (type === activeCategory);
-      const title = item.title.toLowerCase();
-      const matchQuery = !searchQuery || title.includes(searchQuery);
-      return matchCat && matchQuery;
-    });
+    const filtered = getFilteredItems();
 
     if (filtered.length === 0) {
       container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px; font-size: 12px;">No vault items found.</div>`;
@@ -1538,7 +1985,14 @@
       const type = item.type || item.payload?.kind || 'login';
       const card = document.createElement("div");
       card.className = `vault-card ${item.id === selectedItemId ? 'selected' : ''}`;
-      card.onclick = () => { selectedItemId = item.id; renderAllViews(); };
+      card.onclick = () => {
+        selectedItemId = item.id;
+        renderAdwaitaList();
+        renderAdwaitaDetail();
+        if (window.innerWidth <= 768) {
+          showMobileDetail();
+        }
+      };
 
       let icon = '🔑';
       let iconClass = 'icon-login';
@@ -1562,6 +2016,7 @@
 
   function renderAdwaitaDetail() {
     const container = document.getElementById("adwaitaDetailPane");
+    if (!container) return;
     const item = vaultItems.find(i => i.id === selectedItemId) || vaultItems[0];
     if (!item) {
       container.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:100px;">No item selected.</div>`;
@@ -1599,7 +2054,7 @@
         <div class="field-card">
           <div class="field-label">URL</div>
           <div class="field-value-row">
-            <a href="${url}" target="_blank" style="color:var(--primary); font-size:12px;">${url}</a>
+            <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--primary); font-size:12px; word-break:break-all;">${url}</a>
             <button class="btn-field-action" onclick="copyText('${url}', 'URL')">Copy</button>
           </div>
         </div>` : ''}
@@ -1608,15 +2063,47 @@
       fieldsHtml = `
         <div class="field-card">
           <div class="field-label">Note Content</div>
-          <div style="background:#11111b; padding:12px; border-radius:6px; font-family:var(--font-code); font-size:12px; white-space:pre-wrap;">${content}</div>
+          <div style="background:#11111b; padding:12px; border-radius:6px; font-family:var(--font-code); font-size:12px; white-space:pre-wrap; word-break:break-word;">${content}</div>
           <div style="display:flex; justify-content:flex-end; margin-top:8px;">
             <button class="btn-field-action btn-copy" onclick="copyText(\`${content}\`, 'Note')">Copy Content</button>
           </div>
         </div>
       `;
+    } else if (type === 'image') {
+      fieldsHtml = `
+        <div class="field-card">
+          <div class="field-label">Image Preview</div>
+          <div style="background:#11111b; border:1px dashed var(--surface-border); border-radius:6px; padding:24px; text-align:center;">
+            <div style="font-size:36px; margin-bottom:8px;">🖼️</div>
+            <div style="font-size:13px; font-weight:600;">${item.filename || 'Photo scan'}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Encrypted image stored safely in vault</div>
+          </div>
+        </div>
+      `;
+    } else {
+      fieldsHtml = `
+        <div class="field-card">
+          <div class="field-label">File Attachment</div>
+          <div style="background:#11111b; border:1px dashed var(--surface-border); border-radius:6px; padding:24px; text-align:center;">
+            <div style="font-size:36px; margin-bottom:8px;">📁</div>
+            <div style="font-size:13px; font-weight:600;">${item.filename || 'Document'}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Binary encrypted attachment</div>
+          </div>
+        </div>
+      `;
     }
 
+    const mobileBarHtml = `
+      <div class="mobile-detail-bar">
+        <button class="mobile-back-btn" onclick="hideMobileDetail()" aria-label="Back to items list">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          <span>Back to List</span>
+        </button>
+      </div>
+    `;
+
     container.innerHTML = `
+      ${mobileBarHtml}
       <div class="detail-header">
         <div class="detail-title-block">
           <div class="detail-large-icon icon-login">🔑</div>
@@ -1631,6 +2118,85 @@
       </div>
       ${fieldsHtml}
     `;
+  }
+
+  // Render Variant 2: Compact Card Launcher Grid
+  function renderLauncherGrid() {
+    const container = document.getElementById("launcherCardsGrid");
+    if (!container) return;
+    container.innerHTML = "";
+    const filtered = getFilteredItems();
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 40px; font-size: 13px;">No vault items found.</div>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const type = item.type || item.payload?.kind || 'login';
+      const user = item.username || item.payload?.data?.username || "";
+      const pass = item.password || item.payload?.data?.password || "";
+      const filename = item.filename || item.payload?.data?.filename || "";
+      const card = document.createElement("div");
+      card.className = "launcher-card";
+      let icon = type === 'login' ? '🔑' : type === 'note' ? '📝' : type === 'image' ? '🖼️' : '📁';
+
+      card.innerHTML = `
+        <div class="launcher-card-header">
+          <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+            <span>${icon}</span>
+            <strong style="font-size: 13px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${item.title}</strong>
+          </div>
+          <span style="font-size: 10px; background: #313244; padding: 2px 6px; border-radius: 4px; color: var(--text-muted); text-transform: uppercase;">${type}</span>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-code); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          ${user || filename || 'Encrypted Item'}
+        </div>
+        <div class="launcher-actions">
+          ${user ? `<button class="launcher-btn" onclick="copyText('${user}', 'Username')">Copy User</button>` : ''}
+          ${pass ? `<button class="launcher-btn" onclick="copyText('${pass}', 'Password')">Copy Pass</button>` : ''}
+          <button class="launcher-btn" onclick="switchLayout('adwaita'); selectItem('${item.id}');">Open</button>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  // Render Variant 3: Nord Cyber Terminal Table
+  function renderNordTable() {
+    const tbody = document.getElementById("nordTableBody");
+    const counter = document.getElementById("nordCounter");
+    if (!tbody) return;
+    const filtered = getFilteredItems();
+    if (counter) counter.textContent = `${filtered.length} ITEMS LOADED`;
+    tbody.innerHTML = "";
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #81a1c1; padding: 24px;">NO ITEMS FOUND</td></tr>`;
+      return;
+    }
+
+    filtered.forEach((item, index) => {
+      const type = item.type || item.payload?.kind || 'login';
+      const user = item.username || item.payload?.data?.username || "";
+      const pass = item.password || item.payload?.data?.password || "";
+      const filename = item.filename || item.payload?.data?.filename || "";
+      const tr = document.createElement("tr");
+      tr.onclick = () => { switchLayout('adwaita'); selectItem(item.id); };
+      tr.innerHTML = `
+        <td style="color: #5e81ac;">0x${(index + 1).toString(16).padStart(2, '0')}</td>
+        <td><span class="nord-badge">${type.toUpperCase()}</span></td>
+        <td style="font-weight: 600; color: #eceff4;">${item.title}</td>
+        <td style="color: #d8dee9; font-size: 11px;">${user || filename || '---'}</td>
+        <td>
+          <div style="display: flex; gap: 4px;" onclick="event.stopPropagation()">
+            ${user ? `<button class="mini-action-btn" onclick="copyText('${user}', 'User')">USER</button>` : ''}
+            ${pass ? `<button class="mini-action-btn" onclick="copyText('${pass}', 'Pass')">PASS</button>` : ''}
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
   }
 
   function deleteItem(id) {
@@ -1650,7 +2216,7 @@
     vaultItems = [
       { id: "1", type: "login", title: "Google Workspace Admin", username: "admin@company.com", password: "SuperPassword!@#123", url: "https://admin.google.com" },
       { id: "2", type: "login", title: "GitHub Corporate", username: "lead-dev", password: "ghp_secure_token_9999", url: "https://github.com" },
-      { id: "3", type: "note", title: "Server WireGuard Config", content: "[Interface]\nPrivateKey = ...\nAddress = 10.0.0.2/24" }
+      { id: "3", type: "note", title: "Server WireGuard Config", content: "[Interface]\nPrivateKey = …\nAddress = 10.0.0.2/24" }
     ];
     selectedItemId = "1";
     renderAllViews();
