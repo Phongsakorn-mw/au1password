@@ -900,6 +900,14 @@ function setExtensionLockedState(locked) {
     if (tabVault) tabVault.style.display = "none";
     if (drawer) drawer.style.display = "none";
 
+    if (window.chrome?.storage?.local) {
+      chrome.storage.local.get("lastUsername", (data) => {
+        if (data && data.lastUsername && typeof window.updateAccountUI === "function") {
+          window.updateAccountUI(data.lastUsername);
+        }
+      });
+    }
+
     setTimeout(() => {
       const pass = document.getElementById("popupMasterPass");
       if (pass) {
@@ -943,7 +951,11 @@ function handleLockVault() {
 function handlePopupUnlock(e) {
   e.preventDefault();
   const userInput = document.getElementById("popupUsername");
-  const username = userInput ? userInput.value.trim() : "";
+  let username = (userInput ? userInput.value : "").trim();
+  if (!username) {
+    const disp = document.getElementById("displayUsername");
+    if (disp) username = disp.textContent.trim();
+  }
   const passInput = document.getElementById("popupMasterPass");
   const errEl = document.getElementById("popupUnlockError");
   const btnUnlock = document.getElementById("btnPopupUnlock");
@@ -951,6 +963,14 @@ function handlePopupUnlock(e) {
   const password = passInput.value;
   passInput.classList.remove("input-error");
   errEl.style.display = "none";
+
+  if (!username) {
+    errEl.textContent = "Please enter your username";
+    errEl.style.display = "block";
+    userInput?.classList.add("input-error");
+    userInput?.focus();
+    return;
+  }
 
   if (!password) {
     errEl.textContent = "Please enter your master password";
@@ -965,14 +985,17 @@ function handlePopupUnlock(e) {
   errEl.style.display = "none";
 
   if (window.chrome?.runtime?.sendMessage) {
-    if (username && window.chrome?.storage?.local) {
-      chrome.storage.local.set({ lastUsername: username });
-    }
     chrome.runtime.sendMessage({ action: "unlock", username, password }, (res) => {
       btnUnlock.textContent = "Unlock";
       btnUnlock.disabled = false;
 
       if (res && res.success) {
+        if (username && window.chrome?.storage?.local) {
+          chrome.storage.local.set({ lastUsername: username });
+        }
+        if (typeof updateAccountUI === "function") {
+          updateAccountUI(username);
+        }
         passInput.value = "";
         window._isExplicitlyLocked = false;
         setExtensionLockedState(false);
@@ -1115,12 +1138,54 @@ document.addEventListener("DOMContentLoaded", () => {
     if (linkSettings) linkSettings.href = sUrl;
   }
 
+  window.updateAccountUI = function(savedUsername) {
+    const acctBox = document.getElementById("rememberedAccountBox");
+    const inputWrap = document.getElementById("usernameInputWrapper");
+    const nameSpan = document.getElementById("displayUsername");
+    const uInp = document.getElementById("popupUsername");
+    const subTitle = document.getElementById("unlockSubtitle");
+    const passInp = document.getElementById("popupMasterPass");
+
+    if (savedUsername && savedUsername.trim()) {
+      if (acctBox) acctBox.style.display = "flex";
+      if (inputWrap) inputWrap.style.display = "none";
+      if (nameSpan) nameSpan.textContent = savedUsername.trim();
+      if (uInp) uInp.value = savedUsername.trim();
+      if (subTitle) subTitle.textContent = "Enter your master password to unlock.";
+      setTimeout(() => { if (passInp) passInp.focus(); }, 60);
+    } else {
+      if (acctBox) acctBox.style.display = "none";
+      if (inputWrap) inputWrap.style.display = "block";
+      if (subTitle) subTitle.textContent = "Enter your username and master password.";
+      setTimeout(() => { if (uInp) uInp.focus(); }, 60);
+    }
+  };
+
   // Restore remembered username
   if (window.chrome?.storage?.local) {
     chrome.storage.local.get("lastUsername", (data) => {
       if (data && data.lastUsername) {
-        const uEl = document.getElementById("popupUsername");
-        if (uEl && !uEl.value) uEl.value = data.lastUsername;
+        window.updateAccountUI(data.lastUsername);
+      } else {
+        window.updateAccountUI("");
+      }
+    });
+  } else {
+    window.updateAccountUI("");
+  }
+
+  // Switch account button handler
+  const btnSwitch = document.getElementById("btnSwitchAccount");
+  if (btnSwitch) {
+    btnSwitch.addEventListener("click", () => {
+      const acctBox = document.getElementById("rememberedAccountBox");
+      const inputWrap = document.getElementById("usernameInputWrapper");
+      const uInp = document.getElementById("popupUsername");
+      if (acctBox) acctBox.style.display = "none";
+      if (inputWrap) inputWrap.style.display = "block";
+      if (uInp) {
+        uInp.focus();
+        uInp.select();
       }
     });
   }

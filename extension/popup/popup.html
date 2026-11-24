@@ -72,14 +72,25 @@
         </svg>
       </div>
       <p style="font-size: 13px; font-weight: 600; margin: 8px 0 2px 0;">Unlock <span style="color:#3B82F6;">Au1</span>Password</p>
-      <p style="font-size: 11px; color: var(--muted); margin: 0 0 12px 0;">Enter your username and master password to unlock.</p>
+      <p id="unlockSubtitle" style="font-size: 11px; color: var(--muted); margin: 0 0 12px 0;">Enter your master password to unlock.</p>
 
       <form id="popupUnlockForm" novalidate style="width: 100%;">
-        <div style="margin-bottom: 8px;">
+        <!-- Remembered Account Badge (Displayed on subsequent unlocks) -->
+        <div id="rememberedAccountBox" style="display: none; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.22); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px;">
+          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.2" style="flex-shrink:0;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span id="displayUsername" style="font-size: 12px; font-weight: 600; color: #93c5fd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+          </div>
+          <button type="button" id="btnSwitchAccount" style="background: none; border: none; color: var(--muted); font-size: 10.5px; cursor: pointer; text-decoration: underline; padding: 0 2px;" title="Switch account / change username">Switch</button>
+        </div>
+
+        <!-- Username Input (Only shown on first time or switch) -->
+        <div id="usernameInputWrapper" style="margin-bottom: 8px; display: block;">
           <input type="text" id="popupUsername" placeholder="Username (e.g. account name)" autocomplete="username" style="width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; color: #fff;">
         </div>
+
         <div class="input-with-button">
-          <input type="password" id="popupMasterPass" placeholder="Master Password" autocomplete="current-password">
+          <input type="password" id="popupMasterPass" placeholder="Master Password" autocomplete="current-password" autofocus>
           <button type="submit" class="btn-primary" id="btnPopupUnlock">Unlock</button>
         </div>
         <div id="popupUnlockError" class="unlock-error" style="display: none;"></div>
