@@ -18,6 +18,9 @@ import subprocess
 import tempfile
 import sqlite3
 import re
+import hmac
+import hashlib
+import struct
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -115,6 +118,39 @@ current_session = {
 # Multi-User Database & Active Sessions Store
 DB_PATH = DEFAULT_DATA_DIR / "au1password.db"
 active_sessions = {}
+temp_2fa_sessions = {}
+temp_2fa_setups = {}
+
+def verify_totp(secret: str, code: str, window: int = 1) -> bool:
+    """Verify standard RFC 6238 TOTP 6-digit code with +/- window steps."""
+    if not secret or not code:
+        return False
+    try:
+        clean = str(secret).strip().replace(" ", "").upper()
+        clean += "=" * ((8 - len(clean) % 8) % 8)
+        key = base64.b32decode(clean, casefold=True)
+    except Exception:
+        return False
+
+    current_t = int(time.time() // 30)
+    target = str(code).strip()
+    if len(target) != 6 or not target.isdigit():
+        return False
+
+    for t in range(current_t - window, current_t + window + 1):
+        counter = struct.pack(">Q", t)
+        digest = hmac.new(key, counter, hashlib.sha1).digest()
+        offset = digest[19] & 0x0F
+        val = (
+            ((digest[offset] & 0x7F) << 24)
+            | ((digest[offset + 1] & 0xFF) << 16)
+            | ((digest[offset + 2] & 0xFF) << 8)
+            | (digest[offset + 3] & 0xFF)
+        ) % 1_000_000
+        step_code = f"{val:06d}"
+        if hmac.compare_digest(step_code, target):
+            return True
+    return False
 
 def init_db():
     DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -125,9 +161,19 @@ def init_db():
                 salt TEXT,
                 envelope TEXT,
                 created_at REAL,
-                updated_at REAL
+                updated_at REAL,
+                totp_secret TEXT,
+                totp_enabled INTEGER DEFAULT 0
             )
         """)
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         conn.commit()
 
 init_db()
@@ -1357,6 +1403,23 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"authenticated": False}, 200, origin)
 
+        elif url.path == "/api/auth/2fa/status":
+            if not self._validate_session_token():
+                self._send_json({"error": "Unauthorized"}, 401, origin)
+                return
+            sess = self._get_active_session()
+            username = sess.get("username")
+            if not username:
+                self._send_json({"error": "No user session"}, 401, origin)
+                return
+            init_db()
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT totp_enabled FROM users WHERE username = ?", (username,))
+                row = cursor.fetchone()
+                enabled = bool(row and row[0])
+            self._send_json({"success": True, "enabled": enabled, "username": username}, 200, origin)
+
         elif url.path in ("/api/auth/logout", "/api/auth/signout"):
             token = self._extract_token()
             if token in active_sessions:
@@ -2101,6 +2164,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         elif url.path in ("/api/auth/login", "/api/auth/signin"):
             username = body.get("username", "").strip()
             password = body.get("password", "")
+            totp_code = str(body.get("totp_code", "")).strip()
             if not username or not password:
                 self._send_json({"error": "Username and password are required"}, 400, origin)
                 return
@@ -2108,41 +2172,207 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             init_db()
             with sqlite3.connect(DB_PATH) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT username, salt, envelope FROM users WHERE username = ?", (username,))
+                cursor.execute("SELECT username, salt, envelope, totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
                 row = cursor.fetchone()
 
             if not row:
                 self._send_json({"error": "Invalid username or password"}, 401, origin)
                 return
 
-            username_db, salt_db, envelope_str = row
+            username_db, salt_db, envelope_str, totp_secret, totp_enabled = row
             try:
                 envelope = json.loads(envelope_str)
                 decrypted, key, salt = decrypt_vault(envelope, password)
-                session_token = secrets.token_hex(32)
-                sess = {
-                    "username": username_db,
-                    "unlocked": True,
-                    "derived_key": key,
-                    "salt": salt,
-                    "vault": decrypted,
-                    "session_token": session_token,
-                    "token_created_at": time.time(),
-                    "master_password": None
-                }
-                active_sessions[session_token] = sess
-                current_session.update(sess)
-
-                self._send_json({
-                    "success": True,
-                    "token": session_token,
-                    "session_token": session_token,
-                    "username": username_db,
-                    "items": decrypted.get("items", []),
-                    "folders": decrypted.get("folders", [])
-                }, 200, origin)
             except Exception:
                 self._send_json({"error": "Invalid username or password"}, 401, origin)
+                return
+
+            # Check 2FA requirement
+            if totp_enabled and totp_secret:
+                if not totp_code:
+                    temp_token = secrets.token_hex(32)
+                    temp_2fa_sessions[temp_token] = {
+                        "username": username_db,
+                        "derived_key": key,
+                        "salt": salt,
+                        "vault": decrypted,
+                        "totp_secret": totp_secret,
+                        "expires_at": time.time() + 300
+                    }
+                    self._send_json({
+                        "success": True,
+                        "requires_2fa": True,
+                        "temp_token": temp_token,
+                        "username": username_db,
+                        "message": "Two-factor authentication code required"
+                    }, 200, origin)
+                    return
+
+                if not verify_totp(totp_secret, totp_code):
+                    self._send_json({"error": "Invalid 2FA Authenticator code"}, 401, origin)
+                    return
+
+            session_token = secrets.token_hex(32)
+            sess = {
+                "username": username_db,
+                "unlocked": True,
+                "derived_key": key,
+                "salt": salt,
+                "vault": decrypted,
+                "session_token": session_token,
+                "token_created_at": time.time(),
+                "master_password": None
+            }
+            active_sessions[session_token] = sess
+            current_session.update(sess)
+
+            self._send_json({
+                "success": True,
+                "token": session_token,
+                "session_token": session_token,
+                "username": username_db,
+                "items": decrypted.get("items", []),
+                "folders": decrypted.get("folders", [])
+            }, 200, origin)
+
+        elif url.path == "/api/auth/2fa/verify":
+            temp_token = body.get("temp_token", "").strip()
+            totp_code = str(body.get("totp_code", "")).strip()
+            if not temp_token or not totp_code:
+                self._send_json({"error": "temp_token and totp_code are required"}, 400, origin)
+                return
+
+            now = time.time()
+            sess_2fa = temp_2fa_sessions.get(temp_token)
+            if not sess_2fa or sess_2fa.get("expires_at", 0) < now:
+                if temp_token in temp_2fa_sessions:
+                    del temp_2fa_sessions[temp_token]
+                self._send_json({"error": "2FA session expired. Please sign in again."}, 401, origin)
+                return
+
+            if not verify_totp(sess_2fa["totp_secret"], totp_code):
+                self._send_json({"error": "Invalid 2FA Authenticator code"}, 401, origin)
+                return
+
+            # Verification success - promote to active session
+            del temp_2fa_sessions[temp_token]
+            session_token = secrets.token_hex(32)
+            sess = {
+                "username": sess_2fa["username"],
+                "unlocked": True,
+                "derived_key": sess_2fa["derived_key"],
+                "salt": sess_2fa["salt"],
+                "vault": sess_2fa["vault"],
+                "session_token": session_token,
+                "token_created_at": now,
+                "master_password": None
+            }
+            active_sessions[session_token] = sess
+            current_session.update(sess)
+
+            self._send_json({
+                "success": True,
+                "token": session_token,
+                "session_token": session_token,
+                "username": sess_2fa["username"],
+                "items": sess_2fa["vault"].get("items", []),
+                "folders": sess_2fa["vault"].get("folders", [])
+            }, 200, origin)
+
+        elif url.path == "/api/auth/2fa/setup":
+            if not self._validate_session_token():
+                self._send_json({"error": "Unauthorized"}, 401, origin)
+                return
+            sess = self._get_active_session()
+            username = sess.get("username")
+            if not username:
+                self._send_json({"error": "No user session"}, 401, origin)
+                return
+
+            # Generate standard Base32 secret (20 bytes = 32 base32 characters)
+            secret = base64.b32encode(secrets.token_bytes(20)).decode("utf-8").replace("=", "")
+            temp_2fa_setups[username] = {
+                "secret": secret,
+                "expires_at": time.time() + 600
+            }
+            otpauth_url = f"otpauth://totp/Au1Password:{urllib.parse.quote(username)}?secret={secret}&issuer=Au1Password&algorithm=SHA1&digits=6&period=30"
+            self._send_json({
+                "success": True,
+                "secret": secret,
+                "otpauth_url": otpauth_url,
+                "username": username
+            }, 200, origin)
+
+        elif url.path == "/api/auth/2fa/enable":
+            if not self._validate_session_token():
+                self._send_json({"error": "Unauthorized"}, 401, origin)
+                return
+            sess = self._get_active_session()
+            username = sess.get("username")
+            code = str(body.get("code", "")).strip()
+
+            setup = temp_2fa_setups.get(username)
+            if not setup or setup.get("expires_at", 0) < time.time():
+                self._send_json({"error": "2FA setup session expired. Please start setup again."}, 400, origin)
+                return
+
+            secret = setup["secret"]
+            if not verify_totp(secret, code):
+                self._send_json({"error": "Invalid verification code. Check your authenticator app."}, 400, origin)
+                return
+
+            init_db()
+            now = time.time()
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "UPDATE users SET totp_secret = ?, totp_enabled = 1, updated_at = ? WHERE username = ?",
+                    (secret, now, username)
+                )
+                conn.commit()
+
+            if username in temp_2fa_setups:
+                del temp_2fa_setups[username]
+
+            self._send_json({
+                "success": True,
+                "message": "Two-factor authentication enabled successfully"
+            }, 200, origin)
+
+        elif url.path == "/api/auth/2fa/disable":
+            if not self._validate_session_token():
+                self._send_json({"error": "Unauthorized"}, 401, origin)
+                return
+            sess = self._get_active_session()
+            username = sess.get("username")
+            code = str(body.get("code", "")).strip()
+
+            init_db()
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
+                row = cursor.fetchone()
+
+            if not row or not row[0]:
+                self._send_json({"error": "2FA is not enabled"}, 400, origin)
+                return
+
+            secret = row[0]
+            if code and not verify_totp(secret, code):
+                self._send_json({"error": "Invalid 2FA code"}, 400, origin)
+                return
+
+            now = time.time()
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "UPDATE users SET totp_secret = NULL, totp_enabled = 0, updated_at = ? WHERE username = ?",
+                    (now, username)
+                )
+                conn.commit()
+
+            self._send_json({
+                "success": True,
+                "message": "Two-factor authentication disabled successfully"
+            }, 200, origin)
 
         elif url.path in ("/api/auth/logout", "/api/auth/signout"):
             token = self._extract_token()

@@ -2661,6 +2661,25 @@
         <label class="form-label">PBKDF2 Key Derivation Iterations</label>
         <input type="number" class="form-input" id="cfgKdfInput" value="600000" min="100000">
       </div>
+
+      <!-- 2FA Settings Section -->
+      <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--surface-border);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="font-size:12.5px; font-weight:700; color:var(--text-main);" id="settings2faTitle">Two-Factor Authentication (2FA)</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;" id="settings2faSubtitle">Protect sign-in with Google Authenticator or any TOTP app</div>
+          </div>
+          <span id="settings2faBadge" style="font-size:11px; font-weight:700; padding:3px 8px; border-radius:4px; background:rgba(255,255,255,0.06); color:var(--text-muted);">Disabled</span>
+        </div>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button type="button" class="btn-secondary" id="btnOpen2faSetup" onclick="open2faSetupModal()" style="font-size:11.5px; font-weight:600; padding:6px 12px;">
+            Set Up 2FA Authenticator
+          </button>
+          <button type="button" class="btn-secondary" id="btnDisable2fa" onclick="disable2fa()" style="display:none; font-size:11.5px; font-weight:600; padding:6px 12px; color:var(--rose); border-color:rgba(244,63,94,0.3);">
+            Disable 2FA
+          </button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal('settingsModal')">Close</button>
@@ -2669,51 +2688,123 @@
   </div>
 </div>
 
+<!-- Modal 8.5: 2FA Setup Modal -->
+<div class="modal-overlay" id="twoFactorSetupModal">
+  <div class="modal-box" style="max-width: 420px; text-align: center;">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        <span id="twoFactorSetupModalTitle">Set Up 2FA Authenticator</span>
+      </div>
+      <button class="btn-icon" onclick="closeModal('twoFactorSetupModal')">&times;</button>
+    </div>
+    <div class="modal-body" style="padding: 20px; align-items: center; gap: 12px;">
+      <p style="font-size: 12px; color: var(--text-muted); margin: 0;" id="twoFactorSetupPrompt">
+        Scan this QR code with <strong>Google Authenticator</strong> or any TOTP app:
+      </p>
+
+      <div id="twoFactorQrBox" style="background: #ffffff; padding: 10px; border-radius: 10px; display: flex; align-items: center; justify-content: center; width: 174px; height: 174px; margin: 4px auto; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
+        <!-- QR Code SVG injected via JS -->
+      </div>
+
+      <div style="width: 100%; background: var(--bg-base); border: 1px solid var(--surface-border); border-radius: 6px; padding: 7px 10px; font-size: 11.5px; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-family: monospace; font-size: 11px; letter-spacing: 1px; color: var(--accent); overflow: hidden; text-overflow: ellipsis;" id="twoFactorSecretDisplay">---</span>
+        <button type="button" class="btn-action-sm" onclick="copy2faSecret()" style="margin-left: 8px; flex-shrink: 0;">Copy</button>
+      </div>
+
+      <div style="width: 100%; text-align: left; margin-top: 4px;">
+        <label class="form-label" style="margin-bottom: 6px; font-size: 11.5px;" id="twoFactorVerifyLabel">Enter 6-digit code to verify:</label>
+        <input type="text" id="twoFactorVerifyCodeInput" class="form-input" placeholder="000000" maxlength="6" inputmode="numeric" style="text-align: center; font-size: 18px; font-weight: 700; font-family: monospace; letter-spacing: 4px; width: 100%; padding: 8px;">
+      </div>
+
+      <div id="twoFactorSetupError" class="auth-error-banner" style="width: 100%;"></div>
+    </div>
+    <div class="modal-footer" style="justify-content: space-between;">
+      <button class="btn-secondary" onclick="closeModal('twoFactorSetupModal')">Cancel</button>
+      <button class="btn-primary" onclick="confirm2faEnable()" id="btnConfirm2faEnable">Verify & Enable 2FA</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal 9: Multi-User Authentication & Lock Screen Modal -->
 <div class="modal-overlay active" id="unlockModal">
   <div class="modal-box" style="max-width:390px; text-align:center;">
     <div class="modal-body" style="padding: 26px 22px; align-items:center;">
-      <div style="width: 52px; height: 52px; border-radius: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
-        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-          <path d="M7.5 24.5L15 7.5" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round"/>
-          <path d="M15 7.5V24.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
-          <path d="M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
+
+      <!-- Standard Login / Register Container -->
+      <div id="authStandardContainer" style="width:100%; display:flex; flex-direction:column; align-items:center;">
+        <div style="width: 52px; height: 52px; border-radius: 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <path d="M7.5 24.5L15 7.5" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M15 7.5V24.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <!-- Tab Switcher: Sign In vs Register -->
+        <div style="display:flex; width:100%; border-radius:8px; background:var(--bg-elevated); padding:3px; margin-bottom:14px; gap:4px; border:1px solid var(--surface-border-subtle);">
+          <button type="button" id="tabAuthLogin" onclick="switchAuthTab('login')" style="flex:1; padding:7px 0; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; background:var(--accent); color:#ffffff; transition:all 0.15s ease;">
+            Sign In
+          </button>
+          <button type="button" id="tabAuthRegister" onclick="switchAuthTab('register')" style="flex:1; padding:7px 0; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s ease;">
+            Register
+          </button>
+        </div>
+
+        <h3 style="font-size:16px; font-weight:700;" id="unlockTitle"><span style="color:#3B82F6;">Au1</span>Password Sign In</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin:4px 0 16px 0;" id="unlockSubtitle">Enter username and master password to decrypt your personal vault.</p>
+
+        <form onsubmit="handleAuthSubmit(event)" novalidate style="width:100%;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <input type="text" id="authUsernameInput" class="form-input" placeholder="Username" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="username" autocapitalize="none">
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <input type="password" id="masterPasswordInput" class="form-input" placeholder="Master Password" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="current-password">
+          </div>
+          <div class="form-group" id="confirmPasswordGroup" style="margin-bottom:10px; display:none;">
+            <input type="password" id="confirmPasswordInput" class="form-input" placeholder="Confirm Master Password" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="new-password">
+          </div>
+          <div id="unlockError" class="auth-error-banner"></div>
+          <button type="submit" id="btnSubmitUnlock" class="btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px; font-size:13px; font-weight:700;">
+            Sign In to Vault
+          </button>
+        </form>
+
+        <div id="authSwitchPrompt" style="margin-top:14px; font-size:11.5px; color:var(--text-muted); cursor:pointer;" onclick="toggleAuthTab()">
+          Don't have an account? <span style="color:var(--accent); font-weight:600;">Create one</span>
+        </div>
       </div>
 
-      <!-- Tab Switcher: Sign In vs Register -->
-      <div style="display:flex; width:100%; border-radius:8px; background:var(--bg-elevated); padding:3px; margin-bottom:14px; gap:4px; border:1px solid var(--surface-border-subtle);">
-        <button type="button" id="tabAuthLogin" onclick="switchAuthTab('login')" style="flex:1; padding:7px 0; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; background:var(--accent); color:#ffffff; transition:all 0.15s ease;">
-          Sign In
-        </button>
-        <button type="button" id="tabAuthRegister" onclick="switchAuthTab('register')" style="flex:1; padding:7px 0; border:none; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; background:transparent; color:var(--text-muted); transition:all 0.15s ease;">
-          Register
-        </button>
+      <!-- 2FA Prompt Container (Shown during login if user has 2FA enabled) -->
+      <div id="auth2faPromptContainer" style="display:none; width:100%; flex-direction:column; align-items:center;">
+        <div style="width: 52px; height: 52px; border-radius: 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <h3 style="font-size:16px; font-weight:700;" id="auth2faTitle"><span style="color:#3B82F6;">2FA</span> Verification</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin:4px 0 16px 0;" id="auth2faSubtitle">Enter 6-digit code from your Authenticator app.</p>
+
+        <form onsubmit="handle2faSubmit(event)" novalidate style="width:100%;">
+          <div class="form-group" style="margin-bottom:10px;">
+            <input type="text" id="auth2faCodeInput" class="form-input" placeholder="000 000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="text-align:center; font-size:22px; font-weight:700; letter-spacing:6px; font-family:monospace; padding:10px 12px;">
+          </div>
+          <div id="auth2faError" class="auth-error-banner"></div>
+          <button type="submit" id="btnSubmit2fa" class="btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px; font-size:13px; font-weight:700;">
+            Verify & Unlock Vault
+          </button>
+        </form>
+
+        <div style="margin-top:14px; font-size:11.5px; color:var(--text-muted); cursor:pointer;" onclick="cancel2faPrompt()">
+          <span style="color:var(--accent); font-weight:600;">← Back to Sign In</span>
+        </div>
       </div>
 
-      <h3 style="font-size:16px; font-weight:700;" id="unlockTitle"><span style="color:#3B82F6;">Au1</span>Password Sign In</h3>
-      <p style="font-size:12px; color:var(--text-muted); margin:4px 0 16px 0;" id="unlockSubtitle">Enter username and master password to decrypt your personal vault.</p>
-
-      <form onsubmit="handleAuthSubmit(event)" novalidate style="width:100%;">
-        <div class="form-group" style="margin-bottom:10px;">
-          <input type="text" id="authUsernameInput" class="form-input" placeholder="Username" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="username" autocapitalize="none">
-        </div>
-        <div class="form-group" style="margin-bottom:10px;">
-          <input type="password" id="masterPasswordInput" class="form-input" placeholder="Master Password" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="current-password">
-        </div>
-        <div class="form-group" id="confirmPasswordGroup" style="margin-bottom:10px; display:none;">
-          <input type="password" id="confirmPasswordInput" class="form-input" placeholder="Confirm Master Password" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="new-password">
-        </div>
-        <div id="unlockError" class="auth-error-banner"></div>
-        <button type="submit" id="btnSubmitUnlock" class="btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px; font-size:13px; font-weight:700;">
-          Sign In to Vault
-        </button>
-      </form>
-
-      <div id="authSwitchPrompt" style="margin-top:14px; font-size:11.5px; color:var(--text-muted); cursor:pointer;" onclick="toggleAuthTab()">
-        Don't have an account? <span style="color:var(--accent); font-weight:600;">Create one</span>
-      </div>
     </div>
   </div>
 </div>
@@ -6030,6 +6121,13 @@
           throw new Error(data.error || (currentLang === "th" ? "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" : "Invalid username or password"));
         }
 
+        // Check if 2FA verification is required
+        if (data.requires_2fa) {
+          pending2faTempToken = data.temp_token;
+          show2faPrompt();
+          return;
+        }
+
         activeSessionToken = data.token;
         currentUsername = data.username;
         sessionStorage.setItem("au1_session_token", data.token);
@@ -6041,6 +6139,258 @@
       } catch (ex) {
         showAuthError(ex.message, passInput);
       }
+    }
+  }
+
+  // Two-Factor Authentication (2FA) State & Functions
+  let pending2faTempToken = null;
+  let current2faSecret = "";
+
+  function show2faPrompt() {
+    const stdContainer = document.getElementById("authStandardContainer");
+    const prmptContainer = document.getElementById("auth2faPromptContainer");
+    const codeInput = document.getElementById("auth2faCodeInput");
+    const errEl = document.getElementById("auth2faError");
+    if (stdContainer) stdContainer.style.display = "none";
+    if (prmptContainer) prmptContainer.style.display = "flex";
+    if (errEl) {
+      errEl.style.display = "none";
+      errEl.innerHTML = "";
+    }
+    if (codeInput) {
+      codeInput.value = "";
+      codeInput.classList.remove("input-error");
+      setTimeout(() => codeInput.focus(), 150);
+    }
+  }
+
+  function cancel2faPrompt() {
+    pending2faTempToken = null;
+    const stdContainer = document.getElementById("authStandardContainer");
+    const prmptContainer = document.getElementById("auth2faPromptContainer");
+    const codeInput = document.getElementById("auth2faCodeInput");
+    const errEl = document.getElementById("auth2faError");
+    if (prmptContainer) prmptContainer.style.display = "none";
+    if (stdContainer) stdContainer.style.display = "flex";
+    if (errEl) errEl.style.display = "none";
+    if (codeInput) {
+      codeInput.value = "";
+      codeInput.classList.remove("input-error");
+    }
+  }
+
+  async function handle2faSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const codeInput = document.getElementById("auth2faCodeInput");
+    const errEl = document.getElementById("auth2faError");
+    const btnSubmit = document.getElementById("btnSubmit2fa");
+    const code = (codeInput ? codeInput.value : "").trim();
+
+    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+      if (errEl) {
+        errEl.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>${currentLang === "th" ? "กรุณากรอกรหัสตัวเลข 6 หลักให้ถูกต้อง" : "Please enter a valid 6-digit code"}</span>
+        `;
+        errEl.style.display = "flex";
+      }
+      if (codeInput) {
+        codeInput.classList.add("input-error");
+        codeInput.focus();
+      }
+      const modalBox = document.querySelector("#unlockModal .modal-box");
+      if (modalBox) {
+        modalBox.classList.remove("modal-shake");
+        void modalBox.offsetWidth;
+        modalBox.classList.add("modal-shake");
+      }
+      return;
+    }
+
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = currentLang === "th" ? "กำลังตรวจสอบรหัส..." : "Verifying...";
+    }
+
+    try {
+      const res = await fetch("/api/auth/2fa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temp_token: pending2faTempToken, totp_code: code })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || (currentLang === "th" ? "รหัส 2FA ไม่ถูกต้อง กรุณาลองใหม่" : "Invalid 2FA code"));
+
+      activeSessionToken = data.token;
+      currentUsername = data.username;
+      sessionStorage.setItem("au1_session_token", data.token);
+      sessionStorage.setItem("au1_username", data.username);
+      setVaultLockedState(false);
+      renderUserBadge();
+      await loadVaultItems();
+      cancel2faPrompt();
+      showToast(currentLang === "th" ? "ยืนยัน 2FA สำเร็จ เข้าสู่ระบบเรียบร้อย" : "2FA verified! Signed in successfully");
+    } catch (ex) {
+      if (errEl) {
+        errEl.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>${escapeHtml(ex.message)}</span>
+        `;
+        errEl.style.display = "flex";
+      }
+      if (codeInput) {
+        codeInput.classList.add("input-error");
+        codeInput.focus();
+      }
+      const modalBox = document.querySelector("#unlockModal .modal-box");
+      if (modalBox) {
+        modalBox.classList.remove("modal-shake");
+        void modalBox.offsetWidth;
+        modalBox.classList.add("modal-shake");
+      }
+    } finally {
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = currentLang === "th" ? "ยืนยันและปลดล็อกคลังข้อมูล" : "Verify & Unlock Vault";
+      }
+    }
+  }
+
+  async function check2faStatus() {
+    const badge = document.getElementById("settings2faBadge");
+    const btnSetup = document.getElementById("btnOpen2faSetup");
+    const btnDisable = document.getElementById("btnDisable2fa");
+    if (!activeSessionToken) return;
+    try {
+      const res = await fetch("/api/auth/2fa/status", {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      const enabled = data && data.enabled;
+      if (badge) {
+        badge.textContent = enabled ? (currentLang === "th" ? "เปิดใช้งานแล้ว" : "Enabled") : (currentLang === "th" ? "ปิดใช้งานอยู่" : "Disabled");
+        badge.style.background = enabled ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.06)";
+        badge.style.color = enabled ? "#10b981" : "var(--text-muted)";
+      }
+      if (btnSetup) btnSetup.style.display = enabled ? "none" : "inline-flex";
+      if (btnDisable) btnDisable.style.display = enabled ? "inline-flex" : "none";
+    } catch (_) {}
+  }
+
+  async function open2faSetupModal() {
+    const qrBox = document.getElementById("twoFactorQrBox");
+    const secretDisplay = document.getElementById("twoFactorSecretDisplay");
+    const errEl = document.getElementById("twoFactorSetupError");
+    const codeInput = document.getElementById("twoFactorVerifyCodeInput");
+    if (errEl) errEl.style.display = "none";
+    if (codeInput) {
+      codeInput.value = "";
+      codeInput.classList.remove("input-error");
+    }
+
+    try {
+      const res = await fetch("/api/auth/2fa/setup", {
+        method: "POST",
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to initiate 2FA setup");
+
+      current2faSecret = data.secret;
+      if (secretDisplay) secretDisplay.textContent = data.secret;
+      if (qrBox && window.NativeQRCode) {
+        qrBox.innerHTML = NativeQRCode.generateSVG(data.otpauth_url, 154, "#090a0f", "#ffffff");
+      }
+      openModal("twoFactorSetupModal");
+      if (codeInput) setTimeout(() => codeInput.focus(), 200);
+    } catch (ex) {
+      showToast(ex.message);
+    }
+  }
+
+  function copy2faSecret() {
+    if (!current2faSecret) return;
+    copyText(current2faSecret, currentLang === "th" ? "คัดลอกรหัสลับ 2FA แล้ว" : "2FA Secret copied");
+  }
+
+  async function confirm2faEnable() {
+    const codeInput = document.getElementById("twoFactorVerifyCodeInput");
+    const errEl = document.getElementById("twoFactorSetupError");
+    const btn = document.getElementById("btnConfirm2faEnable");
+    const code = (codeInput ? codeInput.value : "").trim();
+
+    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+      if (errEl) {
+        errEl.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>${currentLang === "th" ? "กรุณากรอกรหัสตัวเลข 6 หลักจากแอป" : "Please enter a valid 6-digit code"}</span>
+        `;
+        errEl.style.display = "flex";
+      }
+      if (codeInput) {
+        codeInput.classList.add("input-error");
+        codeInput.focus();
+      }
+      return;
+    }
+
+    if (btn) btn.disabled = true;
+    try {
+      const res = await fetch("/api/auth/2fa/enable", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to verify 2FA code");
+
+      closeModal("twoFactorSetupModal");
+      await check2faStatus();
+      showToast(currentLang === "th" ? "เปิดใช้งาน 2FA Authenticator สำเร็จแล้ว!" : "2FA Authenticator enabled successfully!");
+    } catch (ex) {
+      if (errEl) {
+        errEl.innerHTML = `
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>${escapeHtml(ex.message)}</span>
+        `;
+        errEl.style.display = "flex";
+      }
+      if (codeInput) {
+        codeInput.classList.add("input-error");
+        codeInput.focus();
+      }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function disable2fa() {
+    const confirmMsg = currentLang === "th"
+      ? "คุณแน่ใจหรือไม่ว่าต้องการปิดใช้งาน 2FA? การเข้าสู่ระบบหลังจากนี้จะไม่ต้องใช้รหัสจาก Authenticator"
+      : "Are you sure you want to disable 2FA? Subsequent sign-ins will not require Authenticator codes.";
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await fetch("/api/auth/2fa/disable", {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to disable 2FA");
+
+      await check2faStatus();
+      showToast(currentLang === "th" ? "ปิดใช้งาน 2FA แล้ว" : "2FA disabled successfully");
+    } catch (ex) {
+      showToast(ex.message);
     }
   }
 
@@ -6472,6 +6822,7 @@
   }
 
   function openSettingsModal() {
+    check2faStatus();
     openModal("settingsModal");
   }
 
@@ -6518,12 +6869,16 @@
       setTimeout(openManageFoldersModal, 300);
     }
 
-    ["authUsernameInput", "masterPasswordInput", "confirmPasswordInput", "modalNewFolderName"].forEach(id => {
+    ["authUsernameInput", "masterPasswordInput", "confirmPasswordInput", "modalNewFolderName", "auth2faCodeInput", "twoFactorVerifyCodeInput"].forEach(id => {
       const el = document.getElementById(id);
       if (el) {
         el.addEventListener("input", () => {
           el.classList.remove("input-error");
           clearAuthValidation();
+          const err2fa = document.getElementById("auth2faError");
+          if (err2fa) err2fa.style.display = "none";
+          const errSetup = document.getElementById("twoFactorSetupError");
+          if (errSetup) errSetup.style.display = "none";
         });
       }
     });
