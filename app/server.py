@@ -933,18 +933,28 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 
         # Hardened defense-in-depth headers
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        host_header = self.headers.get("Host", "").split(":")[0].lower()
+        is_hf = host_header.endswith(".hf.space") or host_header.endswith(".huggingface.co") or os.environ.get("ENABLE_HF_EMBED") == "1"
+
+        if is_hf:
+            # Allow embedding in Hugging Face Spaces interface
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8765 http://localhost:8765 https:; frame-ancestors 'self' https://huggingface.co https://*.huggingface.co;"
+            )
+        else:
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8765 http://localhost:8765 https:;"
+            )
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        self.send_header(
-            "Content-Security-Policy",
-            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:8765 http://localhost:8765;"
-        )
 
     def _validate_origin_and_host(self) -> tuple:
         """Check Origin and Host against strict whitelist to prevent DNS Rebinding and CSRF/SOP bypass."""
         origin = self.headers.get("Origin")
-        host_header = self.headers.get("Host", "").split(":")[0]
+        host_header = self.headers.get("Host", "").split(":")[0].lower()
 
         # 1. Host Validation (Prevent DNS Rebinding attacks)
         if host_header and host_header not in ("127.0.0.1", "localhost", "0.0.0.0"):
@@ -952,8 +962,19 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             allowed_hosts = set(cfg.get("server", {}).get("allowed_hosts", []))
             env_allowed_hosts = os.environ.get("ALLOWED_HOSTS", "")
             if env_allowed_hosts:
-                allowed_hosts.update([h.strip() for h in env_allowed_hosts.split(",") if h.strip()])
-            if host_header not in allowed_hosts:
+                allowed_hosts.update([h.strip().lower() for h in env_allowed_hosts.split(",") if h.strip()])
+
+            # Built-in safe hosting domains and wildcards
+            is_allowed = (
+                "*" in allowed_hosts
+                or host_header in allowed_hosts
+                or host_header.endswith(".hf.space")
+                or host_header == "huggingface.co"
+                or host_header.endswith(".huggingface.co")
+                or any(h.startswith("*.") and host_header.endswith(h[1:]) for h in allowed_hosts)
+            )
+
+            if not is_allowed:
                 print(f"[Security Alert] Blocked suspicious Host header: {host_header}")
                 return False, ""
 
@@ -965,12 +986,27 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         if origin in self.ALLOWED_ORIGINS or origin.startswith("chrome-extension://"):
             return True, origin
 
+        clean_origin = origin.lower()
+        if (
+            clean_origin.endswith(".hf.space")
+            or clean_origin == "https://huggingface.co"
+            or clean_origin.endswith(".huggingface.co")
+        ):
+            return True, origin
+
         cfg = load_config()
         allowed_origins = set(cfg.get("server", {}).get("allowed_origins", []))
         env_allowed_origins = os.environ.get("ALLOWED_ORIGINS", "")
         if env_allowed_origins:
-            allowed_origins.update([o.strip() for o in env_allowed_origins.split(",") if o.strip()])
-        if origin in allowed_origins:
+            allowed_origins.update([o.strip().lower() for o in env_allowed_origins.split(",") if o.strip()])
+
+        is_origin_allowed = (
+            "*" in allowed_origins
+            or clean_origin in allowed_origins
+            or any(o.startswith("*.") and clean_origin.endswith(o[1:]) for o in allowed_origins)
+        )
+
+        if is_origin_allowed:
             return True, origin
 
         print(f"[Security Alert] Rejected unauthorized cross-origin request from: {origin}")
