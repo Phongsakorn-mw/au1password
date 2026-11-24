@@ -220,6 +220,15 @@ def init_db():
                     totp_enabled INTEGER DEFAULT 0
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS ephemeral_sends (
+                    send_id VARCHAR(64) PRIMARY KEY,
+                    ciphertext TEXT NOT NULL,
+                    expires_at DOUBLE PRECISION NOT NULL,
+                    views_left INTEGER NOT NULL,
+                    created_at DOUBLE PRECISION NOT NULL
+                )
+            """)
         else:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -232,6 +241,15 @@ def init_db():
                     totp_enabled INTEGER DEFAULT 0
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS ephemeral_sends (
+                    send_id TEXT PRIMARY KEY,
+                    ciphertext TEXT NOT NULL,
+                    expires_at REAL NOT NULL,
+                    views_left INTEGER NOT NULL,
+                    created_at REAL NOT NULL
+                )
+            """)
             try:
                 conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
             except Exception:
@@ -242,6 +260,33 @@ def init_db():
                 pass
 
 init_db()
+
+def save_ephemeral_send(send_id, ciphertext, expires_at, views_left, created_at):
+    with get_db() as conn:
+        now = time.time()
+        conn.execute("DELETE FROM ephemeral_sends WHERE expires_at < ? OR views_left <= 0", (now,))
+        conn.execute(
+            "INSERT INTO ephemeral_sends (send_id, ciphertext, expires_at, views_left, created_at) VALUES (?, ?, ?, ?, ?)",
+            (send_id, ciphertext, expires_at, views_left, created_at)
+        )
+
+def get_and_consume_ephemeral_send(send_id):
+    now = time.time()
+    with get_db() as conn:
+        cursor = conn.execute("SELECT ciphertext, expires_at, views_left FROM ephemeral_sends WHERE send_id = ?", (send_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        ciphertext, expires_at, views_left = row[0], row[1], row[2]
+        if now > expires_at or views_left <= 0:
+            conn.execute("DELETE FROM ephemeral_sends WHERE send_id = ?", (send_id,))
+            return {"expired": True}
+        new_views = views_left - 1
+        if new_views <= 0:
+            conn.execute("DELETE FROM ephemeral_sends WHERE send_id = ?", (send_id,))
+        else:
+            conn.execute("UPDATE ephemeral_sends SET views_left = ? WHERE send_id = ?", (new_views, send_id))
+        return {"ciphertext": ciphertext, "views_left": new_views}
 
 ephemeral_sends = {}
 
@@ -1241,24 +1286,18 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         # Au1Send Zero-Knowledge Fetch
         if url.path.startswith("/api/send/"):
             send_id = url.path[len("/api/send/"):]
-            entry = ephemeral_sends.get(send_id)
-            if not entry:
+            res = get_and_consume_ephemeral_send(send_id)
+            if not res:
                 self._send_json({"error": "Secure link not found or already deleted"}, 404, origin)
                 return
-            if time.time() > entry["expires_at"] or entry["views_left"] <= 0:
-                ephemeral_sends.pop(send_id, None)
+            if res.get("expired"):
                 self._send_json({"error": "This secure link has expired or reached maximum views"}, 410, origin)
                 return
 
-            entry["views_left"] -= 1
-            ct = entry["ciphertext"]
-            if entry["views_left"] <= 0:
-                ephemeral_sends.pop(send_id, None)
-
             self._send_json({
                 "success": True,
-                "ciphertext": ct,
-                "views_left": entry.get("views_left", 0)
+                "ciphertext": res["ciphertext"],
+                "views_left": res.get("views_left", 0)
             }, 200, origin)
             return
 
@@ -1404,7 +1443,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
           parsed = JSON.parse(ptText);
         } catch (_) {}
 
-        if (parsed && typeof parsed === "object" && (parsed.password || parsed.username || parsed.title || parsed.notes)) {
+        if (parsed && typeof parsed === "object" && (parsed.password || parsed.username || parsed.title || parsed.notes || parsed.file)) {
           globalDecryptedPayload = parsed;
           globalPassword = parsed.password || "";
           renderStructuredItem(parsed);
@@ -2024,10 +2063,11 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             send_id = secrets.token_urlsafe(16)
             ephemeral_sends[send_id] = {
                 "ciphertext": ciphertext,
-                "expires_at": time.time() + expires_secs,
+                "expires_at": now + expires_secs,
                 "views_left": max_views,
-                "created_at": time.time()
+                "created_at": now
             }
+            save_ephemeral_send(send_id, ciphertext, now + expires_secs, max_views, now)
             self._send_json({"success": True, "send_id": send_id}, 200, origin)
             return
 
