@@ -1134,6 +1134,11 @@ body.vault-locked #lockedView {
   border-color: var(--primary);
 }
 
+.input-with-button input.input-error, input.input-error {
+  border-color: var(--rose) !important;
+  box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.25) !important;
+}
+
 .unlock-error {
   color: var(--rose);
   font-size: 11px;

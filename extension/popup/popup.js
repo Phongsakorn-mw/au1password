@@ -947,7 +947,16 @@ function handlePopupUnlock(e) {
   const btnUnlock = document.getElementById("btnPopupUnlock");
 
   const password = passInput.value;
-  if (!password) return;
+  passInput.classList.remove("input-error");
+  errEl.style.display = "none";
+
+  if (!password) {
+    errEl.textContent = "Please enter your master password";
+    errEl.style.display = "block";
+    passInput.classList.add("input-error");
+    passInput.focus();
+    return;
+  }
 
   btnUnlock.textContent = "Unlocking…";
   btnUnlock.disabled = true;
@@ -1132,7 +1141,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Master password unlock form
+  const popupMasterPass = document.getElementById("popupMasterPass");
   document.getElementById("popupUnlockForm").addEventListener("submit", handlePopupUnlock);
+  if (popupMasterPass) {
+    popupMasterPass.addEventListener("input", () => {
+      popupMasterPass.classList.remove("input-error");
+      const errEl = document.getElementById("popupUnlockError");
+      if (errEl) errEl.style.display = "none";
+    });
+  }
 
   // Quick Lock button
   document.getElementById("btnQuickLock").addEventListener("click", handleLockVault);

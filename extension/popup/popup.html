@@ -74,9 +74,9 @@
       <p style="font-size: 13px; font-weight: 600; margin: 8px 0 2px 0;">Unlock <span style="color:#3B82F6;">Au1</span>Password</p>
       <p style="font-size: 11px; color: var(--muted); margin: 0 0 12px 0;">Enter your master password to unlock directly in extension.</p>
 
-      <form id="popupUnlockForm" style="width: 100%;">
+      <form id="popupUnlockForm" novalidate style="width: 100%;">
         <div class="input-with-button">
-          <input type="password" id="popupMasterPass" placeholder="Master Password" required autocomplete="current-password">
+          <input type="password" id="popupMasterPass" placeholder="Master Password" autocomplete="current-password">
           <button type="submit" class="btn-primary" id="btnPopupUnlock">Unlock</button>
         </div>
         <div id="popupUnlockError" class="unlock-error" style="display: none;"></div>
@@ -322,7 +322,7 @@
         <button class="btn-sm btn-primary" id="btnDrawerSaveTop">Save</button>
       </div>
 
-      <form id="itemEditForm" class="edit-form">
+      <form id="itemEditForm" class="edit-form" novalidate>
         <input type="hidden" id="editItemId">
 
         <!-- Type Selector -->
@@ -340,7 +340,7 @@
         <!-- Title -->
         <div class="form-group">
           <label>Title *</label>
-          <input type="text" id="editTitle" placeholder="e.g. KBank, Google, GitHub" required autocomplete="off">
+          <input type="text" id="editTitle" placeholder="e.g. KBank, Google, GitHub" autocomplete="off">
         </div>
 
         <!-- Username -->

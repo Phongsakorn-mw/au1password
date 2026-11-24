@@ -1230,6 +1230,37 @@
       border-color: var(--primary);
     }
 
+    .form-input.input-error, .form-select.input-error, .form-textarea.input-error {
+      border-color: var(--rose) !important;
+      box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.25) !important;
+    }
+
+    @keyframes modalShake {
+      0%, 100% { transform: translateX(0); }
+      15%, 55%, 85% { transform: translateX(-5px); }
+      35%, 70% { transform: translateX(5px); }
+    }
+
+    .modal-shake {
+      animation: modalShake 0.35s ease-in-out;
+    }
+
+    .auth-error-banner {
+      background: rgba(244, 63, 94, 0.12);
+      border: 1px solid rgba(244, 63, 94, 0.35);
+      color: var(--rose);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 8px 12px;
+      border-radius: 8px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
     /* Generator Modal Styles */
     .gen-result-display {
       background: var(--bg-base);
@@ -2208,8 +2239,8 @@
     </div>
     <div class="modal-body" style="gap: 14px;">
       <!-- Create New Folder Form -->
-      <form onsubmit="handleCreateFolderFromModal(event)" style="display: flex; gap: 8px;">
-        <input type="text" id="modalNewFolderName" class="form-input" placeholder="New folder name (e.g. Work, Dpis6, Personal)" required style="flex: 1;">
+      <form onsubmit="handleCreateFolderFromModal(event)" novalidate style="display: flex; gap: 8px;">
+        <input type="text" id="modalNewFolderName" class="form-input" placeholder="New folder name (e.g. Work, Dpis6, Personal)" style="flex: 1;">
         <button type="submit" class="btn-primary" style="white-space: nowrap;">+ Add Folder</button>
       </form>
 
@@ -2664,17 +2695,17 @@
       <h3 style="font-size:16px; font-weight:700;" id="unlockTitle"><span style="color:#3B82F6;">Au1</span>Password Sign In</h3>
       <p style="font-size:12px; color:var(--text-muted); margin:4px 0 16px 0;" id="unlockSubtitle">Enter username and master password to decrypt your personal vault.</p>
 
-      <form onsubmit="handleAuthSubmit(event)" style="width:100%;">
+      <form onsubmit="handleAuthSubmit(event)" novalidate style="width:100%;">
         <div class="form-group" style="margin-bottom:10px;">
-          <input type="text" id="authUsernameInput" class="form-input" placeholder="Username" required style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="username" autocapitalize="none">
+          <input type="text" id="authUsernameInput" class="form-input" placeholder="Username" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="username" autocapitalize="none">
         </div>
         <div class="form-group" style="margin-bottom:10px;">
-          <input type="password" id="masterPasswordInput" class="form-input" placeholder="Master Password" required style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="current-password">
+          <input type="password" id="masterPasswordInput" class="form-input" placeholder="Master Password" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="current-password">
         </div>
         <div class="form-group" id="confirmPasswordGroup" style="margin-bottom:10px; display:none;">
           <input type="password" id="confirmPasswordInput" class="form-input" placeholder="Confirm Master Password" style="text-align:center; font-size:13.5px; padding:9px 12px;" autocomplete="new-password">
         </div>
-        <div id="unlockError" style="color:var(--rose); font-size:11.5px; margin-top:8px; display:none;"></div>
+        <div id="unlockError" class="auth-error-banner"></div>
         <button type="submit" id="btnSubmitUnlock" class="btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px; font-size:13px; font-weight:700;">
           Sign In to Vault
         </button>
@@ -5804,8 +5835,48 @@
     }
   }
 
+  function clearAuthValidation() {
+    const usernameInput = document.getElementById("authUsernameInput");
+    const passInput = document.getElementById("masterPasswordInput");
+    const confirmInput = document.getElementById("confirmPasswordInput");
+    const errEl = document.getElementById("unlockError");
+    if (usernameInput) usernameInput.classList.remove("input-error");
+    if (passInput) passInput.classList.remove("input-error");
+    if (confirmInput) confirmInput.classList.remove("input-error");
+    if (errEl) {
+      errEl.style.display = "none";
+      errEl.innerHTML = "";
+    }
+  }
+
+  function showAuthError(message, targetInput = null) {
+    const errEl = document.getElementById("unlockError");
+    if (errEl) {
+      errEl.innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>${escapeHtml(message)}</span>
+      `;
+      errEl.style.display = "flex";
+    }
+    if (targetInput) {
+      targetInput.classList.add("input-error");
+      targetInput.focus();
+    }
+    const modalBox = document.querySelector("#unlockModal .modal-box");
+    if (modalBox) {
+      modalBox.classList.remove("modal-shake");
+      void modalBox.offsetWidth;
+      modalBox.classList.add("modal-shake");
+    }
+  }
+
   function switchAuthTab(mode) {
     authMode = mode;
+    clearAuthValidation();
     const tabLogin = document.getElementById("tabAuthLogin");
     const tabRegister = document.getElementById("tabAuthRegister");
     const titleEl = document.getElementById("unlockTitle");
@@ -5814,8 +5885,6 @@
     const confirmInput = document.getElementById("confirmPasswordInput");
     const btnSubmit = document.getElementById("btnSubmitUnlock");
     const switchPrompt = document.getElementById("authSwitchPrompt");
-    const errEl = document.getElementById("unlockError");
-    if (errEl) errEl.style.display = "none";
 
     if (mode === "register") {
       if (tabLogin) {
@@ -5831,7 +5900,7 @@
         ? "สมัครสมาชิกใหม่ คลังรหัสผ่านจะถูกแยกเก็บเป็นส่วนตัวเฉพาะคุณ" 
         : "Create an account. Your vault is completely isolated and zero-knowledge encrypted.";
       if (confirmGroup) confirmGroup.style.display = "block";
-      if (confirmInput) confirmInput.required = true;
+      if (confirmInput) confirmInput.value = "";
       if (btnSubmit) btnSubmit.textContent = currentLang === "th" ? "สมัครสมาชิกและสร้างคลังข้อมูล" : "Create Account & Vault";
       if (switchPrompt) switchPrompt.innerHTML = currentLang === "th"
         ? `มีบัญชีอยู่แล้ว? <span style="color:var(--accent); font-weight:600;">เข้าสู่ระบบ</span>`
@@ -5850,10 +5919,7 @@
         ? "กรอกชื่อผู้ใช้และรหัสผ่านหลักเพื่อปลดล็อกคลังข้อมูลของคุณ" 
         : "Enter username and master password to decrypt your personal vault.";
       if (confirmGroup) confirmGroup.style.display = "none";
-      if (confirmInput) {
-        confirmInput.required = false;
-        confirmInput.value = "";
-      }
+      if (confirmInput) confirmInput.value = "";
       if (btnSubmit) btnSubmit.textContent = currentLang === "th" ? "เข้าสู่ระบบคลังรหัสผ่าน" : "Sign In to Vault";
       if (switchPrompt) switchPrompt.innerHTML = currentLang === "th"
         ? `ยังไม่มีบัญชี? <span style="color:var(--accent); font-weight:600;">สมัครสมาชิกใหม่</span>`
@@ -5867,37 +5933,47 @@
 
   async function handleAuthSubmit(e) {
     if (e && e.preventDefault) e.preventDefault();
+    clearAuthValidation();
+
     const usernameInput = document.getElementById("authUsernameInput");
     const passInput = document.getElementById("masterPasswordInput");
     const confirmInput = document.getElementById("confirmPasswordInput");
-    const errEl = document.getElementById("unlockError");
-    if (errEl) errEl.style.display = "none";
 
     const username = (usernameInput ? usernameInput.value : "").trim();
     const password = passInput ? passInput.value : "";
     const confirmPass = confirmInput ? confirmInput.value : "";
 
     if (!username) {
-      if (errEl) {
-        errEl.textContent = currentLang === "th" ? "กรุณากรอกชื่อผู้ใช้" : "Username is required";
-        errEl.style.display = "block";
-      }
+      const msg = currentLang === "th" ? "กรุณากรอกชื่อผู้ใช้" : "Please enter your username";
+      showAuthError(msg, usernameInput);
+      return;
+    }
+    if (username.length < 3) {
+      const msg = currentLang === "th" ? "ชื่อผู้ใช้ต้องมีอย่างน้อย 3 ตัวอักษร" : "Username must be at least 3 characters";
+      showAuthError(msg, usernameInput);
+      return;
+    }
+
+    if (!password) {
+      const msg = currentLang === "th" ? "กรุณากรอกรหัสผ่านหลัก" : "Please enter your master password";
+      showAuthError(msg, passInput);
       return;
     }
 
     if (authMode === "register") {
-      if (password !== confirmPass) {
-        if (errEl) {
-          errEl.textContent = currentLang === "th" ? "รหัสผ่านทั้งสองช่องไม่ตรงกัน" : "Passwords do not match";
-          errEl.style.display = "block";
-        }
+      if (password.length < 4) {
+        const msg = currentLang === "th" ? "รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร" : "Password must be at least 4 characters";
+        showAuthError(msg, passInput);
         return;
       }
-      if (password.length < 4) {
-        if (errEl) {
-          errEl.textContent = currentLang === "th" ? "รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร" : "Password must be at least 4 characters";
-          errEl.style.display = "block";
-        }
+      if (!confirmPass) {
+        const msg = currentLang === "th" ? "กรุณายืนยันรหัสผ่านหลัก" : "Please confirm your master password";
+        showAuthError(msg, confirmInput);
+        return;
+      }
+      if (password !== confirmPass) {
+        const msg = currentLang === "th" ? "รหัสผ่านทั้งสองช่องไม่ตรงกัน" : "Passwords do not match";
+        showAuthError(msg, confirmInput);
         return;
       }
 
@@ -5919,10 +5995,7 @@
         await loadVaultItems();
         showToast(currentLang === "th" ? `ยินดีต้อนรับคุณ ${data.username}! สร้างคลังสำเร็จ` : `Welcome ${data.username}! Vault created`);
       } catch (ex) {
-        if (errEl) {
-          errEl.textContent = ex.message;
-          errEl.style.display = "block";
-        }
+        showAuthError(ex.message, usernameInput);
       }
     } else {
       // Login mode
@@ -5954,7 +6027,7 @@
               return;
             }
           }
-          throw new Error(data.error || "Invalid username or password");
+          throw new Error(data.error || (currentLang === "th" ? "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" : "Invalid username or password"));
         }
 
         activeSessionToken = data.token;
@@ -5966,10 +6039,7 @@
         await loadVaultItems();
         showToast(currentLang === "th" ? `ยินดีต้อนรับกลับคุณ ${data.username}` : `Welcome back, ${data.username}!`);
       } catch (ex) {
-        if (errEl) {
-          errEl.textContent = ex.message;
-          errEl.style.display = "block";
-        }
+        showAuthError(ex.message, passInput);
       }
     }
   }
@@ -6447,6 +6517,16 @@
     if (urlParams.get("modal") === "folders") {
       setTimeout(openManageFoldersModal, 300);
     }
+
+    ["authUsernameInput", "masterPasswordInput", "confirmPasswordInput", "modalNewFolderName"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("input", () => {
+          el.classList.remove("input-error");
+          clearAuthValidation();
+        });
+      }
+    });
   });
 </script>
 </body>
