@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub const CURRENT_VAULT_VERSION: u32 = 1;
-pub const CURRENT_FORMAT_ID: &str = "otter-vault-v1";
-pub const DEFAULT_KDF_ITERATIONS: u32 = 250_000;
+pub const CURRENT_FORMAT_ID: &str = "au1password-vault-v1";
+pub const LEGACY_FORMAT_ID: &str = "otter-vault-v1";
+pub const DEFAULT_KDF_ITERATIONS: u32 = 600_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

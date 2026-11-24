@@ -1,0 +1,39 @@
+services:
+  au1password:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: au1password
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - au1password_data:/data
+    environment:
+      - PORT=8765
+      - HOST=0.0.0.0
+      - PYTHONUNBUFFERED=1
+      # หากต้องการต่อกับโดเมนสาธารณะ ให้ระบุชื่อโดเมนเพื่อความปลอดภัย (ป้องกัน DNS Rebinding):
+      # - ALLOWED_HOSTS=vault.yourdomain.com
+      # - ALLOWED_ORIGINS=https://vault.yourdomain.com
+
+  # Caddy Reverse Proxy for Automatic HTTPS (Let's Encrypt SSL)
+  # เปิดใช้ส่วนนี้หากต้องการวางบน VPS พร้อมต่อโดเมนและขอ SSL ฟรีอัตโนมัติ:
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: au1password_caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   depends_on:
+  #     - au1password
+
+volumes:
+  au1password_data:
+  # caddy_data:
+  # caddy_config:

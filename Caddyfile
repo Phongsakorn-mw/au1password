@@ -1,0 +1,6 @@
+# Au1Password Caddy HTTPS Reverse Proxy
+# เปลี่ยน 'vault.yourdomain.com' เป็นโดเมนจริงของคุณ (Caddy จะออก SSL ให้อัตโนมัติ)
+# vault.yourdomain.com {
+#     encode gzip zstd
+#     reverse_proxy au1password:8765
+# }

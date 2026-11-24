@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="512" height="512" fill="none">
+  <rect width="32" height="32" rx="7.5" fill="#0A0D14"/>
+  <rect x="2" y="2" width="28" height="28" rx="6.5" stroke="#3B82F6" stroke-width="1.5" stroke-opacity="0.25"/>
+  <!-- Left ascending leg of A -->
+  <path d="M7.5 24.5L15 7.5" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- Central spine: 1 & P stem -->
+  <path d="M15 7.5V24.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- P security loop -->
+  <path d="M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- A crossbar connecting to 1 -->
+  <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
+</svg>

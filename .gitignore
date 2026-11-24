@@ -7,3 +7,8 @@
 
 __pycache__/
 *.pyc
+
+build/
+dist/
+tools/
+scratch/

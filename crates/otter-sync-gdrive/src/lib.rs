@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub const GDRIVE_APPDATA_FOLDER: &str = "appDataFolder";
-pub const GDRIVE_VAULT_FILENAME: &str = "otter-vault.enc";
+pub const GDRIVE_VAULT_FILENAME: &str = "au1password-vault.enc";
+pub const GDRIVE_LEGACY_FILENAME: &str = "otter-vault.enc";
 pub const GDRIVE_SCOPE_APPDATA: &str = "https://www.googleapis.com/auth/drive.appdata";
 
 #[derive(Error, Debug)]
@@ -131,7 +132,7 @@ mod tests {
     fn make_test_envelope(last_modified: i64) -> VaultEnvelope {
         VaultEnvelope {
             version: 1,
-            format: "otter-vault-v1".into(),
+            format: "au1password-vault-v1".into(),
             kdf: KdfParams {
                 algorithm: "PBKDF2-HMAC-SHA256".into(),
                 salt_base64: "c2FsdA==".into(),

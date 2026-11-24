@@ -61,7 +61,7 @@ pub fn encrypt_vault(vault: &Vault, password: &str) -> Result<VaultEnvelope, Cry
 
     // aes_gcm appends 16-byte tag to the ciphertext
     let ciphertext_and_tag = cipher
-        .encrypt(nonce, Payload { msg: &plaintext, aad: b"otter-vault-v1" })
+        .encrypt(nonce, Payload { msg: &plaintext, aad: b"au1password-vault-v1" })
         .map_err(|_| CryptoError::AuthenticationFailed)?;
 
     // Split ciphertext and tag
@@ -126,7 +126,8 @@ pub fn decrypt_vault(envelope: &VaultEnvelope, password: &str) -> Result<Vault, 
         .map_err(|_| CryptoError::AuthenticationFailed)?;
 
     let plaintext = cipher
-        .decrypt(nonce, Payload { msg: &ciphertext_and_tag, aad: b"otter-vault-v1" })
+        .decrypt(nonce, Payload { msg: &ciphertext_and_tag, aad: b"au1password-vault-v1" })
+        .or_else(|_| cipher.decrypt(nonce, Payload { msg: &ciphertext_and_tag, aad: b"otter-vault-v1" }))
         .map_err(|_| CryptoError::AuthenticationFailed)?;
 
     // 6. Deserialize
@@ -158,7 +159,7 @@ mod tests {
         let password = "MyMasterPassword_9988";
         let envelope = encrypt_vault(&vault, password).expect("encryption succeeds");
 
-        assert_eq!(envelope.format, "otter-vault-v1");
+        assert_eq!(envelope.format, "au1password-vault-v1");
         assert_eq!(envelope.meta.item_count, 2);
 
         let decrypted = decrypt_vault(&envelope, password).expect("decryption succeeds");
