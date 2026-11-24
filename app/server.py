@@ -1494,8 +1494,41 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         `;
       }
 
+      if (item.file && item.file.data) {
+        const fSize = item.file.size ? (item.file.size > 1048576 ? (item.file.size / 1048576).toFixed(1) + ' MB' : (item.file.size / 1024).toFixed(1) + ' KB') : '';
+        html += `
+          <div class="field-row">
+            <span class="field-label">Attached Encrypted File</span>
+            <div class="field-val-wrap" style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.3); padding:10px 12px; display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:8px; overflow:hidden;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="flex-shrink:0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                  <div style="font-weight:700; color:#f4f4f5; font-size:13px;">${escapeHtml(item.file.name)}</div>
+                  <div style="font-size:11px; color:#94a3b8;">${fSize}</div>
+                </div>
+              </div>
+              <button class="btn-mini" onclick="downloadAttachedFile()" title="Download Decrypted File" style="background:#3b82f6; color:#fff; padding:6px 12px; border-radius:6px; font-weight:700; font-size:12px; display:flex; align-items:center; gap:6px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
       container.innerHTML = html;
       document.getElementById("structuredView").style.display = "block";
+    }
+
+    function downloadAttachedFile() {
+      if (!globalDecryptedPayload || !globalDecryptedPayload.file) return;
+      const f = globalDecryptedPayload.file;
+      const a = document.createElement("a");
+      a.href = f.data;
+      a.download = f.name || "downloaded-file";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     let passVisible = false;
@@ -1975,8 +2008,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             if not ciphertext:
                 self._send_json({"error": "Missing ciphertext"}, 400, origin)
                 return
-            if len(ciphertext) > 100 * 1024:  # 100 KB max for ephemeral secrets
-                self._send_json({"error": "Payload too large for ephemeral send (max 100KB)"}, 413, origin)
+            if len(ciphertext) > 10 * 1024 * 1024:  # 10 MB max for ephemeral encrypted secrets and files
+                self._send_json({"error": "Payload too large for ephemeral send (max 10MB)"}, 413, origin)
                 return
 
             # Prune expired entries to prevent memory exhaustion DoS

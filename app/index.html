@@ -2777,6 +2777,29 @@
           <textarea id="sendNotesInput" class="form-textarea" rows="2" placeholder="Additional notes for recipient..."></textarea>
         </div>
 
+        <!-- Attached File Section (Zero-Knowledge Encrypted) -->
+        <div class="form-group" style="margin-bottom: 13px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <label class="form-label" style="margin-bottom: 0;">Attach File (Zero-Knowledge Encrypted)</label>
+            <span style="font-size: 11px; color: var(--text-dim);">Max 10 MB</span>
+          </div>
+          <input type="file" id="sendFileInput" style="display: none;" onchange="handleSendFileSelect(event)">
+          <div id="sendFileEmptyBox">
+            <button type="button" class="btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;" onclick="document.getElementById('sendFileInput').click()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              <span>Attach File to Link (Optional)</span>
+            </button>
+          </div>
+          <div id="sendFileSelectedBox" style="display: none; background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: 6px; padding: 7px 10px; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 7px; overflow: hidden;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="flex-shrink: 0;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span id="sendFileNameDisplay" style="font-size: 12px; font-weight: 600; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+              <span id="sendFileSizeDisplay" style="font-size: 11px; color: var(--text-dim); flex-shrink: 0;"></span>
+            </div>
+            <button type="button" class="btn-icon" onclick="removeSendFile()" title="Remove File" style="color: var(--rose); padding: 2px;">&times;</button>
+          </div>
+        </div>
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
           <div class="form-group">
             <label class="form-label" for="sendExpirySelect">Link Expiration</label>
@@ -5450,6 +5473,48 @@
   // ==============================================================================
   // Au1Send: Ephemeral Encrypted Link Generator & Vault Ingestion
   // ==============================================================================
+  let selectedSendFile = null;
+
+  function handleSendFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToast(currentLang === "th" ? "ไฟล์มีขนาดเกิน 10 MB" : "File exceeds 10 MB limit.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      selectedSendFile = {
+        name: file.name,
+        size: file.size,
+        type: file.type || "application/octet-stream",
+        data: evt.target.result
+      };
+      const fSize = file.size > 1048576 ? (file.size / 1048576).toFixed(1) + " MB" : (file.size / 1024).toFixed(1) + " KB";
+      const nameDisp = document.getElementById("sendFileNameDisplay");
+      const sizeDisp = document.getElementById("sendFileSizeDisplay");
+      if (nameDisp) nameDisp.textContent = file.name;
+      if (sizeDisp) sizeDisp.textContent = `(${fSize})`;
+      const emptyBox = document.getElementById("sendFileEmptyBox");
+      const selBox = document.getElementById("sendFileSelectedBox");
+      if (emptyBox) emptyBox.style.display = "none";
+      if (selBox) selBox.style.display = "flex";
+      showToast(currentLang === "th" ? `แนบไฟล์: ${file.name}` : `Attached: ${file.name}`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeSendFile() {
+    selectedSendFile = null;
+    const inp = document.getElementById("sendFileInput");
+    if (inp) inp.value = "";
+    const emptyBox = document.getElementById("sendFileEmptyBox");
+    const selBox = document.getElementById("sendFileSelectedBox");
+    if (emptyBox) emptyBox.style.display = "block";
+    if (selBox) selBox.style.display = "none";
+  }
+
   function openSendModal(itemId = null) {
     if (isVaultLocked()) {
       showToast("Vault is locked. Please unlock first.");
@@ -5466,6 +5531,24 @@
         document.getElementById("sendUsernameInput").value = it.username || it.user || "";
         document.getElementById("sendUrlInput").value = it.url || "";
         document.getElementById("sendNotesInput").value = it.notes || "";
+        if (Array.isArray(it.attachments) && it.attachments.length > 0) {
+          const att = it.attachments[0];
+          selectedSendFile = {
+            name: att.name,
+            size: att.size || 0,
+            type: att.type || "application/octet-stream",
+            data: att.data
+          };
+          const fSize = selectedSendFile.size > 1048576 ? (selectedSendFile.size / 1048576).toFixed(1) + " MB" : (selectedSendFile.size / 1024).toFixed(1) + " KB";
+          const nameDisp = document.getElementById("sendFileNameDisplay");
+          const sizeDisp = document.getElementById("sendFileSizeDisplay");
+          if (nameDisp) nameDisp.textContent = selectedSendFile.name;
+          if (sizeDisp) sizeDisp.textContent = `(${fSize})`;
+          const emptyBox = document.getElementById("sendFileEmptyBox");
+          const selBox = document.getElementById("sendFileSelectedBox");
+          if (emptyBox) emptyBox.style.display = "none";
+          if (selBox) selBox.style.display = "flex";
+        }
       }
     }
 
@@ -5487,6 +5570,7 @@
     document.getElementById("sendExpirySelect").value = "86400";
     document.getElementById("sendViewsSelect").value = "1";
     document.getElementById("sendGeneratedUrl").value = "";
+    removeSendFile();
     const btnCopy = document.getElementById("btnCopySendUrl");
     if (btnCopy) btnCopy.textContent = "Copy Link";
   }
@@ -5494,13 +5578,13 @@
   async function generateSendLink() {
     const secretInput = document.getElementById("sendSecretInput");
     const secretVal = secretInput.value;
-    if (!secretVal || !secretVal.trim()) {
+    if ((!secretVal || !secretVal.trim()) && !selectedSendFile) {
       secretInput.focus();
-      showToast("Please enter secret text or password to share.");
+      showToast(currentLang === "th" ? "กรุณากรอกข้อความรหัสผ่าน หรือแนบไฟล์ที่ต้องการแชร์" : "Please enter secret text or attach a file to share.");
       return;
     }
 
-    const titleVal = document.getElementById("sendTitleInput").value.trim() || "Shared Secret";
+    const titleVal = document.getElementById("sendTitleInput").value.trim() || (selectedSendFile ? selectedSendFile.name : "Shared Secret");
     const usernameVal = document.getElementById("sendUsernameInput").value.trim();
     const urlVal = document.getElementById("sendUrlInput").value.trim();
     const notesVal = document.getElementById("sendNotesInput").value.trim();
@@ -5518,7 +5602,8 @@
         username: usernameVal,
         password: secretVal,
         url: urlVal,
-        notes: notesVal
+        notes: notesVal,
+        file: selectedSendFile
       };
       const payloadStr = JSON.stringify(payloadObj);
 
@@ -5624,6 +5709,15 @@
     if (item.password) document.getElementById("itemPasswordInput").value = item.password;
     if (item.url) document.getElementById("itemUrlInput").value = item.url;
     if (item.notes) document.getElementById("itemNotesInput").value = item.notes;
+    if (item.file) {
+      modalCurrentAttachments = [{
+        name: item.file.name,
+        size: item.file.size,
+        type: item.file.type,
+        data: item.file.data
+      }];
+      renderModalAttachmentsList();
+    }
 
     showToast(currentLang === "th" ? "นำเข้าข้อมูลจาก One-Time Link เรียบร้อยแล้ว ตรวจสอบและบันทึกลงคลังได้เลย" : "Loaded item from shared link! Review and click Save Item.");
   }
