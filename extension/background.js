@@ -1,5 +1,19 @@
 // Au1Password Chrome Extension - Background Service Worker
-const DAEMON_URL = "http://127.0.0.1:8765";
+const DEFAULT_SERVER_URL = "https://au1password.onrender.com";
+
+async function getServerUrl() {
+  try {
+    if (chrome.storage?.local) {
+      const data = await chrome.storage.local.get("serverUrl");
+      if (data && data.serverUrl && data.serverUrl.trim()) {
+        return data.serverUrl.trim().replace(/\/+$/, "");
+      }
+    }
+  } catch (e) {
+    // Ignore storage errors in restricted contexts
+  }
+  return DEFAULT_SERVER_URL;
+}
 
 let extensionSessionToken = null;
 
@@ -71,31 +85,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // Wrap async execution inside an immediately-invoked function expression
   (async () => {
     try {
+      const serverUrl = await getServerUrl();
+
+      // Server configuration actions
+      if (request.action === "getServerUrl") {
+        sendResponse({ success: true, serverUrl });
+        return;
+      }
+
+      if (request.action === "setServerUrl") {
+        const newUrl = (request.serverUrl || DEFAULT_SERVER_URL).trim().replace(/\/+$/, "");
+        if (chrome.storage?.local) {
+          await chrome.storage.local.set({ serverUrl: newUrl });
+        }
+        await setSessionToken(null);
+        sendResponse({ success: true, serverUrl: newUrl });
+        return;
+      }
+
       // 1. Get Vault Status
       if (request.action === "getStatus") {
-        const res = await fetch(`${DAEMON_URL}/api/vault/status`);
+        const res = await fetch(`${serverUrl}/api/vault/status`);
         const data = await res.json();
         // If daemon is unlocked and returned a session_token, sync it
         if (data && data.unlocked && data.session_token) {
           await setSessionToken(data.session_token);
         }
-        sendResponse({ success: true, data });
+        sendResponse({ success: true, data, serverUrl });
         return;
       }
 
       // 2. Unlock Vault
       if (request.action === "unlock") {
-        const res = await fetch(`${DAEMON_URL}/api/vault/unlock`, {
+        const payload = { password: request.password };
+        if (request.username) payload.username = request.username.trim();
+        if (request.totp_code) payload.totp_code = request.totp_code.trim();
+
+        const res = await fetch(`${serverUrl}/api/vault/unlock`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ password: request.password })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (!res.ok || data.error) throw new Error(data.error || "Incorrect master password or username");
         if (data.token) {
           await setSessionToken(data.token);
         }
-        sendResponse({ success: true, data });
+        sendResponse({ success: true, data, serverUrl });
         return;
       }
 
@@ -103,7 +139,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "lock") {
         const headers = await getAuthHeaders({ "Content-Type": "application/json" });
         try {
-          const res = await fetch(`${DAEMON_URL}/api/vault/lock`, {
+          const res = await fetch(`${serverUrl}/api/vault/lock`, {
             method: "POST",
             headers
           });
@@ -120,7 +156,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 4. Get All Vault Items
       if (request.action === "getItems") {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${DAEMON_URL}/api/vault/items`, { headers });
+        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault is locked or unavailable");
         const data = await res.json();
         sendResponse({ success: true, items: data.items || [] });
@@ -130,7 +166,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 5. Save Item (Create or Update item & auto-sync to cloud)
       if (request.action === "saveItem") {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${DAEMON_URL}/api/vault/items`, { headers });
+        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault is locked. Unlock before saving.");
         const data = await res.json();
 
@@ -149,7 +185,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const saveHeaders = await getAuthHeaders({ "Content-Type": "application/json" });
-        const saveRes = await fetch(`${DAEMON_URL}/api/vault/save`, {
+        const saveRes = await fetch(`${serverUrl}/api/vault/save`, {
           method: "POST",
           headers: saveHeaders,
           body: JSON.stringify({ items })
@@ -163,7 +199,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 6. Delete Item (Soft-delete or trash & auto-sync)
       if (request.action === "deleteItem") {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${DAEMON_URL}/api/vault/items`, { headers });
+        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault is locked");
         const data = await res.json();
 
@@ -181,7 +217,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const saveHeaders = await getAuthHeaders({ "Content-Type": "application/json" });
-        const delRes = await fetch(`${DAEMON_URL}/api/vault/save`, {
+        const delRes = await fetch(`${serverUrl}/api/vault/save`, {
           method: "POST",
           headers: saveHeaders,
           body: JSON.stringify({ items })
@@ -217,7 +253,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const headers = await getAuthHeaders();
-        const res = await fetch(`${DAEMON_URL}/api/vault/items`, { headers });
+        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault locked");
         const data = await res.json();
         const items = data.items || [];
@@ -237,7 +273,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 8. Multi-Cloud Sync Status (Google Drive, GitHub, GitLab, SafeHost)
       if (request.action === "getSyncStatus") {
         try {
-          const res = await fetch(`${DAEMON_URL}/api/sync/status`);
+          const res = await fetch(`${serverUrl}/api/sync/status`);
           if (res.ok) {
             const data = await res.json();
             sendResponse({ success: true, data });
@@ -245,7 +281,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
         } catch (e) {}
         // Fallback to legacy gdrive status
-        const res = await fetch(`${DAEMON_URL}/api/gdrive/status`);
+        const res = await fetch(`${serverUrl}/api/gdrive/status`);
         const data = await res.json();
         sendResponse({ success: true, data });
         return;
@@ -255,7 +291,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "syncPush") {
         const headers = await getAuthHeaders({ "Content-Type": "application/json" });
         try {
-          const res = await fetch(`${DAEMON_URL}/api/sync/push`, { method: "POST", headers });
+          const res = await fetch(`${serverUrl}/api/sync/push`, { method: "POST", headers });
           const data = await res.json();
           if (res.ok && data.success) {
             sendResponse({ success: true, data });
@@ -266,7 +302,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (!e.message?.includes("404")) throw e;
         }
         // Fallback to gdrive
-        const res = await fetch(`${DAEMON_URL}/api/gdrive/sync-push`, { method: "POST", headers });
+        const res = await fetch(`${serverUrl}/api/gdrive/sync-push`, { method: "POST", headers });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         sendResponse({ success: true, data });
@@ -277,7 +313,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "syncPull") {
         const headers = await getAuthHeaders({ "Content-Type": "application/json" });
         try {
-          const res = await fetch(`${DAEMON_URL}/api/sync/pull`, { method: "POST", headers });
+          const res = await fetch(`${serverUrl}/api/sync/pull`, { method: "POST", headers });
           const data = await res.json();
           if (res.ok && data.success) {
             sendResponse({ success: true, data });
@@ -288,7 +324,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (!e.message?.includes("404")) throw e;
         }
         // Fallback to gdrive
-        const res = await fetch(`${DAEMON_URL}/api/gdrive/sync-pull`, { method: "POST", headers });
+        const res = await fetch(`${serverUrl}/api/gdrive/sync-pull`, { method: "POST", headers });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         sendResponse({ success: true, data });
@@ -323,7 +359,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           return;
         }
         const headers = await getAuthHeaders();
-        const res = await fetch(`${DAEMON_URL}/api/vault/items`, { headers });
+        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault locked");
         const data = await res.json();
         const items = data.items || [];

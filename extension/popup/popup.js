@@ -942,6 +942,8 @@ function handleLockVault() {
 // UNLOCK VAULT
 function handlePopupUnlock(e) {
   e.preventDefault();
+  const userInput = document.getElementById("popupUsername");
+  const username = userInput ? userInput.value.trim() : "";
   const passInput = document.getElementById("popupMasterPass");
   const errEl = document.getElementById("popupUnlockError");
   const btnUnlock = document.getElementById("btnPopupUnlock");
@@ -963,7 +965,10 @@ function handlePopupUnlock(e) {
   errEl.style.display = "none";
 
   if (window.chrome?.runtime?.sendMessage) {
-    chrome.runtime.sendMessage({ action: "unlock", password }, (res) => {
+    if (username && window.chrome?.storage?.local) {
+      chrome.storage.local.set({ lastUsername: username });
+    }
+    chrome.runtime.sendMessage({ action: "unlock", username, password }, (res) => {
       btnUnlock.textContent = "Unlock";
       btnUnlock.disabled = false;
 
@@ -973,7 +978,7 @@ function handlePopupUnlock(e) {
         setExtensionLockedState(false);
         loadVaultData();
       } else {
-        errEl.textContent = res?.error || "Incorrect master password";
+        errEl.textContent = res?.error || "Incorrect username or master password";
         errEl.style.display = "block";
       }
     });
@@ -1064,12 +1069,13 @@ function loadVaultData() {
   chrome.runtime.sendMessage({ action: "getStatus" }, (res) => {
     if (!res || !res.success) {
       if (statusBadge) {
-        statusBadge.textContent = "Daemon Offline";
+        statusBadge.textContent = "Offline";
         statusBadge.className = "badge locked";
       }
       const errEl = document.getElementById("popupUnlockError");
       if (errEl) {
-        errEl.textContent = "Au1Password Desktop Daemon is offline. Please start the app on port 8765.";
+        const sUrl = res?.serverUrl || "https://au1password.onrender.com";
+        errEl.textContent = `Server unreachable (${sUrl}). Check connection or change server in Settings.`;
         errEl.style.display = "block";
       }
       setExtensionLockedState(true);
@@ -1097,6 +1103,87 @@ function loadVaultData() {
 // INITIALIZE EXTENSION POPUP
 document.addEventListener("DOMContentLoaded", () => {
   const urlParams = new URLSearchParams(window.location.search);
+
+  function updateServerUrlUI(sUrl) {
+    const lbl = document.getElementById("currentServerLabel");
+    if (lbl) lbl.textContent = sUrl;
+    const inp = document.getElementById("settingServerUrl");
+    if (inp) inp.value = sUrl;
+    const linkApp = document.getElementById("linkOpenApp");
+    if (linkApp) linkApp.href = sUrl;
+    const linkSettings = document.getElementById("linkOpenAppSettings");
+    if (linkSettings) linkSettings.href = sUrl;
+  }
+
+  // Restore remembered username
+  if (window.chrome?.storage?.local) {
+    chrome.storage.local.get("lastUsername", (data) => {
+      if (data && data.lastUsername) {
+        const uEl = document.getElementById("popupUsername");
+        if (uEl && !uEl.value) uEl.value = data.lastUsername;
+      }
+    });
+  }
+
+  // Load configured server URL
+  if (window.chrome?.runtime?.sendMessage) {
+    chrome.runtime.sendMessage({ action: "getServerUrl" }, (res) => {
+      if (res && res.serverUrl) {
+        updateServerUrlUI(res.serverUrl);
+      }
+    });
+  }
+
+  // Server setting controls
+  const btnSaveServerUrl = document.getElementById("btnSaveServerUrl");
+  if (btnSaveServerUrl) {
+    btnSaveServerUrl.addEventListener("click", () => {
+      const val = (document.getElementById("settingServerUrl")?.value || "").trim();
+      if (!val) return;
+      if (window.chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ action: "setServerUrl", serverUrl: val }, (res) => {
+          updateServerUrlUI(res.serverUrl);
+          showToast(`Server updated: ${res.serverUrl}`);
+          loadVaultData();
+        });
+      } else {
+        updateServerUrlUI(val);
+        showToast(`Server updated: ${val}`);
+      }
+    });
+  }
+
+  const btnPresetCloud = document.getElementById("btnPresetCloud");
+  if (btnPresetCloud) {
+    btnPresetCloud.addEventListener("click", () => {
+      const val = "https://au1password.onrender.com";
+      const inp = document.getElementById("settingServerUrl");
+      if (inp) inp.value = val;
+      if (window.chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ action: "setServerUrl", serverUrl: val }, (res) => {
+          updateServerUrlUI(res.serverUrl);
+          showToast("Switched to Render Cloud Server");
+          loadVaultData();
+        });
+      }
+    });
+  }
+
+  const btnPresetLocal = document.getElementById("btnPresetLocal");
+  if (btnPresetLocal) {
+    btnPresetLocal.addEventListener("click", () => {
+      const val = "http://127.0.0.1:8765";
+      const inp = document.getElementById("settingServerUrl");
+      if (inp) inp.value = val;
+      if (window.chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ action: "setServerUrl", serverUrl: val }, (res) => {
+          updateServerUrlUI(res.serverUrl);
+          showToast("Switched to Local Daemon (port 8765)");
+          loadVaultData();
+        });
+      }
+    });
+  }
 
   // Tab switching buttons
   document.querySelectorAll(".tab-btn").forEach(btn => {

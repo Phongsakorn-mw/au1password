@@ -34,7 +34,7 @@ Website: https://au1password.onrender.com
 GitHub Repository: https://github.com/Phongsakorn-mw/au1password
 Issues: https://github.com/Phongsakorn-mw/au1password/issues
 
-Version 1.0.0 — Initial official release featuring zero-knowledge vault synchronization, TOTP authenticator, and intelligent autofill.
+Version 1.0.1 — Official release featuring cloud vault synchronization with https://au1password.onrender.com, configurable server settings, TOTP authenticator, zero-knowledge file sharing, and intelligent autofill.
 
 **Category** [REQUIRED]
 Productivity
@@ -63,12 +63,13 @@ English
 
 | Permission | Type | Justification |
 |------------|------|---------------|
-| `storage` | permissions | Saves user preferences, active theme, and local session configuration on the local device. |
+| `storage` | permissions | Saves user preferences, active theme, remembered username, and local session configuration on the local device. |
 | `activeTab` | permissions | Detects username and password input fields on the active webpage when the user triggers autofill. |
 | `tabs` | permissions | Retrieves the domain of the active tab to match and display corresponding saved login credentials in the popup. |
 | `scripting` | permissions | Fills credentials directly into login form fields when the user explicitly clicks autofill. |
 | `clipboardWrite` | permissions | Enables users to copy generated passwords and 2FA TOTP codes to the clipboard with one click. |
-| `http://127.0.0.1:8765/*` | host_permissions | Communicates with the local Au1Password vault service on the user's computer for encrypted sync. |
+| `https://au1password.onrender.com/*` | host_permissions | Primary cloud vault synchronization and authentication service endpoint. |
+| `http://127.0.0.1:8765/*` | host_permissions | Communicates with the local Au1Password vault service on the user's computer for local-first sync. |
 | `http://localhost:8765/*` | host_permissions | Fallback localhost address to communicate with the user's local Au1Password vault service. |
 
 ---

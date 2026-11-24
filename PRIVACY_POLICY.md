@@ -18,19 +18,19 @@ Au1Password operates entirely under a zero-knowledge security model:
 - **No Analytics or Telemetry**: The extension contains no tracking pixels, advertising SDKs, or analytics trackers.
 
 ## 3. How Data Is Stored
-- Stored credentials and tokens reside entirely on your device inside encrypted envelopes.
-- Communication between the browser extension and the local Au1Password backend occurs solely via encrypted localhost requests (`http://127.0.0.1:8765`).
+- Stored credentials and tokens reside inside client-side encrypted envelopes.
+- Communication between the browser extension and the Au1Password backend occurs via secure encrypted HTTPS requests to `https://au1password.onrender.com` or locally via localhost requests (`http://127.0.0.1:8765`).
 
 ## 4. Third-Party Services & Data Sharing
 - Au1Password does not sell, rent, or trade your data with any third parties or advertisers.
 - Optional cloud sync (such as Google Drive) only transmits your pre-encrypted vault file directly to your personal cloud storage account. We do not operate any intermediary servers that hold your keys.
 
 ## 5. Permissions Used by the Browser Extension
-- `storage`: Preserves your local extension settings and preferences.
+- `storage`: Preserves your local extension settings, preferences, and remembered username.
 - `activeTab` & `tabs`: Identifies the current web domain to match saved logins for autofill.
 - `scripting`: Fills credential fields on the active webpage only upon your explicit request.
 - `clipboardWrite`: Copies generated passwords or TOTP codes when you click copy.
-- `host_permissions` (`http://127.0.0.1:8765/*`, `http://localhost:8765/*`): Connects to your local Au1Password vault service.
+- `host_permissions` (`https://au1password.onrender.com/*`, `http://127.0.0.1:8765/*`, `http://localhost:8765/*`): Connects to your Au1Password cloud service or local vault daemon.
 
 ## 6. User Rights & Data Deletion
 You maintain complete control over your data:

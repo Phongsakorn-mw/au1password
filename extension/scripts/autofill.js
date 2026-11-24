@@ -2,6 +2,7 @@
 (function() {
   // Safety: Never inject inline badges into Au1Password's own vault pages, popups, or search boxes
   if (
+    window.location.hostname === "au1password.onrender.com" ||
     (window.location.hostname === "127.0.0.1" && window.location.port === "8765") ||
     (window.location.hostname === "localhost" && window.location.port === "8765") ||
     window.location.protocol === "chrome-extension:" ||

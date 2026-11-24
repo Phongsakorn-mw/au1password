@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Au1Password - Zero-Knowledge Password & Passkey Manager",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-knowledge password manager, TOTP authenticator, and cloud sync for Linux & browser.",
   "permissions": [
     "storage",
@@ -11,6 +11,7 @@
     "clipboardWrite"
   ],
   "host_permissions": [
+    "https://au1password.onrender.com/*",
     "http://127.0.0.1:8765/*",
     "http://localhost:8765/*"
   ],

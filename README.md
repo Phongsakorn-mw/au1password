@@ -33,9 +33,9 @@ Au1Password provides a local daemon, web vault interface, and Chromium extension
 
 Au1Password consists of three core components:
 
-1. **Vault server (`app/server.py`)**: A lightweight Python daemon running on port 8765 that handles local vault storage, cryptographic operations, and WebSocket/HTTP APIs for extension communication.
+1. **Vault server (`app/server.py`)**: A lightweight Python server (running locally on port 8765 or deployed to cloud at `https://au1password.onrender.com`) that handles vault storage, cryptographic operations, and HTTP APIs for extension communication.
 2. **Web interface (`app/index.html`)**: A responsive single-page application providing vault management, TOTP viewing, security audits, and import/export tools.
-3. **Browser extension (`extension/`)**: Manifest V3 extension providing background sync, autofill overlay on target web pages, and vault quick access.
+3. **Browser extension (`extension/`)**: Manifest V3 extension providing background sync (connecting to `https://au1password.onrender.com` by default, with configurable local `127.0.0.1:8765` support in Settings), autofill overlay on target web pages, and vault quick access.
 
 Rust core libraries in `crates/` provide high-performance cryptographic primitives and data models:
 - `crates/otter-crypto`: Argon2id KDF and AES-256-GCM encryption with dual AAD format support.

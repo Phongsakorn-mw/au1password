@@ -33,7 +33,7 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </button>
-        <a href="http://127.0.0.1:8765" target="_blank" class="btn-icon" title="Open Desktop App">
+        <a href="https://au1password.onrender.com" target="_blank" class="btn-icon" id="linkOpenApp" title="Open Web App">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
             <polyline points="15 3 21 3 21 9"/>
@@ -72,14 +72,20 @@
         </svg>
       </div>
       <p style="font-size: 13px; font-weight: 600; margin: 8px 0 2px 0;">Unlock <span style="color:#3B82F6;">Au1</span>Password</p>
-      <p style="font-size: 11px; color: var(--muted); margin: 0 0 12px 0;">Enter your master password to unlock directly in extension.</p>
+      <p style="font-size: 11px; color: var(--muted); margin: 0 0 12px 0;">Enter your username and master password to unlock.</p>
 
       <form id="popupUnlockForm" novalidate style="width: 100%;">
+        <div style="margin-bottom: 8px;">
+          <input type="text" id="popupUsername" placeholder="Username (e.g. account name)" autocomplete="username" style="width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; color: #fff;">
+        </div>
         <div class="input-with-button">
           <input type="password" id="popupMasterPass" placeholder="Master Password" autocomplete="current-password">
           <button type="submit" class="btn-primary" id="btnPopupUnlock">Unlock</button>
         </div>
         <div id="popupUnlockError" class="unlock-error" style="display: none;"></div>
+        <div style="margin-top: 8px; font-size: 10.5px; color: var(--muted); text-align: center;">
+          Server: <span id="currentServerLabel" style="color: #60a5fa;">https://au1password.onrender.com</span>
+        </div>
       </form>
     </div>
 
@@ -286,6 +292,19 @@
           </div>
         </div>
 
+        <div class="settings-section-title" style="margin-top: 14px;">Server Connection</div>
+        <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; margin-bottom: 12px;">
+          <label style="font-size: 11px; color: var(--muted); display: block; margin-bottom: 5px;">Vault Server URL</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="settingServerUrl" style="font-size: 11.5px; padding: 6px 8px; flex: 1; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; color: #fff;" placeholder="https://au1password.onrender.com">
+            <button class="btn-sm btn-primary" id="btnSaveServerUrl" style="white-space: nowrap; padding: 6px 10px;">Save</button>
+          </div>
+          <div style="display: flex; gap: 6px; margin-top: 8px;">
+            <button type="button" class="btn-sm btn-secondary" style="font-size: 10.5px; padding: 3px 8px;" id="btnPresetCloud">Cloud (Render)</button>
+            <button type="button" class="btn-sm btn-secondary" style="font-size: 10.5px; padding: 3px 8px;" id="btnPresetLocal">Local (8765)</button>
+          </div>
+        </div>
+
         <div class="settings-section-title" style="margin-top: 14px;">Quick Actions</div>
         <div class="settings-actions-list">
           <button class="btn-danger-outline" id="btnLockVaultNow">
@@ -296,12 +315,12 @@
             <span>Lock Vault Immediately</span>
           </button>
 
-          <a href="http://127.0.0.1:8765" target="_blank" class="btn-secondary" style="text-decoration: none; justify-content: center; margin-top: 6px;">
+          <a href="https://au1password.onrender.com" target="_blank" class="btn-secondary" id="linkOpenAppSettings" style="text-decoration: none; justify-content: center; margin-top: 6px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
               <polyline points="15 3 21 3 21 9"/>
             </svg>
-            <span>Open Desktop App & Settings</span>
+            <span>Open Web App & Settings</span>
           </a>
         </div>
 
