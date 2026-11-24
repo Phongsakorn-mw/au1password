@@ -1204,41 +1204,98 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Au1Send - Secure Decrypted Item</title>
+<title>Au1Send - Zero-Knowledge Secure Item</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   body { background: #090a0f; color: #f4f4f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-  .card { background: #11131c; border: 1px solid #1e2638; border-radius: 12px; padding: 28px; max-width: 440px; width: 100%; box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
-  .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin-bottom: 20px; }
-  .box { background: #08090d; border: 1px solid #272833; border-radius: 8px; padding: 14px; font-family: monospace; font-size: 13px; color: #38bdf8; word-break: break-all; margin: 16px 0; user-select: all; }
-  .btn { display: block; width: 100%; padding: 10px; background: #3b82f6; border: none; color: #fff; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer; text-align: center; }
-  .meta { font-size: 11px; color: #71717a; text-align: center; margin-top: 14px; line-height: 1.4; }
-  .err { color: #f87171; font-size: 13px; text-align: center; line-height: 1.5; }
+  .card { background: #11131c; border: 1px solid #1e2638; border-radius: 14px; padding: 28px; max-width: 480px; width: 100%; box-shadow: 0 16px 40px rgba(0,0,0,0.5); }
+  .brand { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .brand-logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; }
+  .badge-zk { font-size: 10.5px; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); padding: 3px 8px; border-radius: 20px; }
+  .box { background: #08090d; border: 1px solid #272833; border-radius: 8px; padding: 14px; font-family: monospace; font-size: 13px; color: #38bdf8; word-break: break-all; margin: 14px 0; user-select: all; }
+  .field-group { background: #08090d; border: 1px solid #1e2638; border-radius: 8px; padding: 12px; margin: 14px 0; display: flex; flex-direction: column; gap: 10px; }
+  .field-row { display: flex; flex-direction: column; gap: 3px; }
+  .field-label { font-size: 11px; font-weight: 700; color: #71717a; text-transform: uppercase; letter-spacing: 0.05em; }
+  .field-val-wrap { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: #11131c; border: 1px solid #272833; border-radius: 6px; padding: 7px 10px; font-size: 13px; }
+  .field-val { color: #f4f4f5; word-break: break-all; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .field-val.mono { font-family: monospace; color: #38bdf8; }
+  .btn-mini { background: transparent; border: none; color: #94a3b8; cursor: pointer; padding: 2px 4px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; }
+  .btn-mini:hover { color: #f4f4f5; background: #1e2638; }
+  .btn-primary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px; background: #3b82f6; border: none; color: #fff; border-radius: 8px; font-weight: 700; font-size: 13.5px; cursor: pointer; transition: background 0.15s; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-secondary { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 10px; background: #181b26; border: 1px solid #272833; color: #e4e4e7; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; margin-top: 8px; transition: background 0.15s; }
+  .btn-secondary:hover { background: #222736; color: #ffffff; }
+  .meta { font-size: 11px; color: #71717a; text-align: center; margin-top: 14px; line-height: 1.45; }
+  .burn-banner { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); color: #fca5a5; font-size: 11.5px; padding: 8px 12px; border-radius: 6px; margin-bottom: 14px; text-align: center; }
+  .err { color: #f87171; font-size: 13px; text-align: center; line-height: 1.5; padding: 14px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; }
 </style>
 </head>
 <body>
   <div class="card">
     <div class="brand">
-      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
-        <path d="M7.5 24.5L15 7.5" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round"/>
-        <path d="M15 7.5V24.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
-        <path d="M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
-      </svg>
-      <span><span style="color:#3B82F6;">Au1</span>Send</span>
+      <div class="brand-logo">
+        <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+          <path d="M7.5 24.5L15 7.5" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M15 7.5V24.5" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round"/>
+          <path d="M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15" stroke="#3B82F6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <span><span style="color:#3B82F6;">Au1</span>Send</span>
+      </div>
+      <span class="badge-zk">End-to-End Encrypted</span>
     </div>
 
-    <div id="loading" style="text-align: center; color: #94a3b8; font-size: 13px;">Decrypting zero-knowledge payload...</div>
-    <div id="contentBox" style="display: none;">
-      <p style="font-size: 12.5px; color: #cbd5e1; font-weight: 600;">Secure Shared Content:</p>
-      <div class="box" id="secretText"></div>
-      <button class="btn" id="btnCopy" onclick="copySecret()">Copy to Clipboard</button>
-      <p class="meta"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px; margin-right:4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>End-to-end encrypted in your browser using AES-256-GCM. The server never sees the plaintext or the decryption key.</p>
+    <div id="loading" style="text-align: center; color: #94a3b8; font-size: 13px; padding: 24px 0;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" style="animation: spin 1s linear infinite; margin-bottom: 8px;"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+      <div>Decrypting zero-knowledge payload...</div>
+      <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
     </div>
+
+    <div id="contentBox" style="display: none;">
+      <div id="burnNotice" class="burn-banner" style="display: none;">
+        🔥 This link was set to 1-time view and has now been permanently deleted from the server.
+      </div>
+
+      <!-- Structured Object View -->
+      <div id="structuredView" style="display: none;">
+        <div class="field-group" id="structuredFields"></div>
+      </div>
+
+      <!-- Plain Text Box View -->
+      <div id="plainTextView" style="display: none;">
+        <p style="font-size: 12px; color: #cbd5e1; font-weight: 600;">Secure Shared Message:</p>
+        <div class="box" id="secretText"></div>
+      </div>
+
+      <!-- Main Actions -->
+      <button class="btn-primary" id="btnSaveVault" onclick="saveToAu1Password()">
+        <svg width="15" height="15" viewBox="0 0 32 32" fill="none">
+          <path d="M7.5 24.5L15 7.5" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round"/>
+          <path d="M15 7.5V24.5" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round"/>
+          <path d="M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
+        <span>Save to Au1Password (บันทึกลงคลังรหัสผ่าน)</span>
+      </button>
+
+      <button class="btn-secondary" id="btnCopy" onclick="copySecret()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span id="btnCopyText">Copy to Clipboard</span>
+      </button>
+
+      <p class="meta">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:-1px; margin-right:4px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Zero-Knowledge AES-256-GCM. Decryption key was kept in the URL hash fragment (#key) and never sent to the server.
+      </p>
+    </div>
+
     <div id="errorBox" class="err" style="display: none;"></div>
   </div>
 
   <script>
+    let globalDecryptedPayload = null;
+    let globalPassword = "";
+
     async function decryptPayload() {
       try {
         const hash = window.location.hash.substring(1);
@@ -1254,7 +1311,11 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 
         const res = await fetch("/api/send/" + sendId);
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to fetch secure item");
+        if (!res.ok) throw new Error(data.error || "Failed to fetch secure item (link may have expired or already been viewed).");
+
+        if (data.views_left === 0) {
+          document.getElementById("burnNotice").style.display = "block";
+        }
 
         // Native WebCrypto AES-GCM Decryption
         const rawKey = Uint8Array.from(atob(keyB64), c => c.charCodeAt(0));
@@ -1270,8 +1331,28 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         const ptText = new TextDecoder().decode(ptBuffer);
 
         document.getElementById("loading").style.display = "none";
-        document.getElementById("secretText").textContent = ptText;
         document.getElementById("contentBox").style.display = "block";
+
+        // Determine if content is structured JSON or plain text
+        let parsed = null;
+        try {
+          parsed = JSON.parse(ptText);
+        } catch (_) {}
+
+        if (parsed && typeof parsed === "object" && (parsed.password || parsed.username || parsed.title || parsed.notes)) {
+          globalDecryptedPayload = parsed;
+          globalPassword = parsed.password || "";
+          renderStructuredItem(parsed);
+        } else {
+          globalDecryptedPayload = {
+            title: "Shared Secret",
+            password: ptText,
+            notes: "Received via Au1Send One-Time Link"
+          };
+          globalPassword = ptText;
+          document.getElementById("secretText").textContent = ptText;
+          document.getElementById("plainTextView").style.display = "block";
+        }
       } catch (err) {
         document.getElementById("loading").style.display = "none";
         document.getElementById("errorBox").textContent = err.message;
@@ -1279,12 +1360,123 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
       }
     }
 
+    function renderStructuredItem(item) {
+      const container = document.getElementById("structuredFields");
+      let html = "";
+
+      if (item.title) {
+        html += `
+          <div class="field-row">
+            <span class="field-label">Title</span>
+            <div class="field-val-wrap"><span class="field-val" style="font-weight:600;">${escapeHtml(item.title)}</span></div>
+          </div>
+        `;
+      }
+
+      if (item.username) {
+        html += `
+          <div class="field-row">
+            <span class="field-label">Username</span>
+            <div class="field-val-wrap">
+              <span class="field-val">${escapeHtml(item.username)}</span>
+              <button class="btn-mini" onclick="copyText('${escapeAttr(item.username)}', this)" title="Copy Username">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+
+      if (item.password) {
+        html += `
+          <div class="field-row">
+            <span class="field-label">Password</span>
+            <div class="field-val-wrap">
+              <span class="field-val mono" id="passDisplay">••••••••••••</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <button class="btn-mini" id="btnTogglePass" onclick="togglePassVisibility()" title="Show/Hide Password">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                <button class="btn-mini" onclick="copyText('${escapeAttr(item.password)}', this)" title="Copy Password">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      if (item.url) {
+        html += `
+          <div class="field-row">
+            <span class="field-label">Website URL</span>
+            <div class="field-val-wrap">
+              <span class="field-val" style="font-size:12px; color:#38bdf8;">${escapeHtml(item.url)}</span>
+              <a class="btn-mini" href="${escapeAttr(item.url)}" target="_blank" rel="noopener noreferrer" title="Open Link">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </a>
+            </div>
+          </div>
+        `;
+      }
+
+      if (item.notes) {
+        html += `
+          <div class="field-row">
+            <span class="field-label">Notes</span>
+            <div class="field-val-wrap" style="white-space:pre-wrap; font-size:12px; color:#cbd5e1;"><span class="field-val">${escapeHtml(item.notes)}</span></div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = html;
+      document.getElementById("structuredView").style.display = "block";
+    }
+
+    let passVisible = false;
+    function togglePassVisibility() {
+      const el = document.getElementById("passDisplay");
+      if (!el) return;
+      passVisible = !passVisible;
+      el.textContent = passVisible ? globalPassword : "••••••••••••";
+    }
+
     function copySecret() {
-      const text = document.getElementById("secretText").textContent;
-      navigator.clipboard.writeText(text);
-      const btn = document.getElementById("btnCopy");
+      const textToCopy = globalPassword || (document.getElementById("secretText")?.textContent || "");
+      navigator.clipboard.writeText(textToCopy);
+      const btn = document.getElementById("btnCopyText");
       btn.textContent = "Copied to Clipboard!";
       setTimeout(() => btn.textContent = "Copy to Clipboard", 2000);
+    }
+
+    function copyText(val, btnEl) {
+      navigator.clipboard.writeText(val);
+      if (btnEl) {
+        const orig = btnEl.innerHTML;
+        btnEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+        setTimeout(() => btnEl.innerHTML = orig, 1800);
+      }
+    }
+
+    function saveToAu1Password() {
+      if (!globalDecryptedPayload) return;
+      try {
+        localStorage.setItem("au1_pending_import", JSON.stringify(globalDecryptedPayload));
+        // Redirect to main Au1Password vault application
+        window.location.href = "/?import_send=1";
+      } catch (err) {
+        alert("Failed to save to local storage: " + err.message);
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function escapeAttr(str) {
+      if (!str) return "";
+      return String(str).replace(/"/g, "&quot;");
     }
 
     decryptPayload();

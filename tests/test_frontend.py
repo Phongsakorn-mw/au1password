@@ -258,6 +258,29 @@ def run_tests():
     except Exception as e:
         log_test("Locked State Isolation: Verification failed", False, str(e))
 
+    # Test 19: Au1Send Modal, Share Link & Vault Ingestion
+    try:
+        has_send_modal = 'id="sendModal"' in html
+        has_open_send = 'openSendModal' in html
+        has_generate_send = 'generateSendLink' in html
+        has_copy_send = 'copySendLinkUrl' in html
+        has_check_pending = 'checkPendingImportFromSend' in html
+        has_pending_key = 'au1_pending_import' in html
+
+        server_py = Path("app/server.py").read_text(encoding="utf-8")
+        has_viewer_save_btn = 'btnSaveVault' in server_py and 'Save to Au1Password' in server_py
+        has_viewer_structured = 'structuredView' in server_py and 'renderStructuredItem' in server_py
+        has_viewer_burn = 'burnNotice' in server_py
+
+        send_integration_pass = (
+            has_send_modal and has_open_send and has_generate_send and
+            has_copy_send and has_check_pending and has_pending_key and
+            has_viewer_save_btn and has_viewer_structured and has_viewer_burn
+        )
+        log_test("Au1Send: One-Time Link Generator Modal, Recipient Viewer & Direct Vault Ingestion", send_integration_pass)
+    except Exception as e:
+        log_test("Au1Send: One-Time Link Generator Modal, Recipient Viewer & Direct Vault Ingestion", False, str(e))
+
     return passed, failed, errors
 
 if __name__ == "__main__":

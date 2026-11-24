@@ -1672,6 +1672,11 @@
         <span class="topbar-btn-text" data-i18n="import_export">Import / Export</span>
       </button>
 
+      <button class="btn-secondary" onclick="openSendModal()" title="Au1Send - Ephemeral Encrypted Link" aria-label="One-Time Link">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        <span class="topbar-btn-text">One-Time Link</span>
+      </button>
+
       <!-- Theme Switcher (Intuitive Contrast Duality Toggle) -->
       <button class="btn-icon" id="btnThemeToggle" onclick="cycleTheme()" title="Switch Theme (Light / Dark)" aria-label="Switch Theme">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>
@@ -2729,6 +2734,103 @@
   </div>
 </div>
 
+<!-- Modal 8.5: Au1Send Share One-Time Link Modal -->
+<div class="modal-overlay" id="sendModal">
+  <div class="modal-box" style="max-width: 480px;">
+    <div class="modal-header">
+      <div class="modal-title" style="display:flex; align-items:center; gap:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+        <span>One-Time Link (Au1Send)</span>
+      </div>
+      <button class="btn-icon" onclick="closeModal('sendModal')">&times;</button>
+    </div>
+
+    <div class="modal-body" style="padding: 16px 20px;">
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.45;">
+        Send passwords and sensitive data with zero-knowledge end-to-end encryption. The decryption key stays in the URL fragment (<code style="color:#38bdf8;">#key=...</code>) and is never sent to the server.
+      </p>
+
+      <div id="sendFormContainer">
+        <div class="form-group" style="margin-bottom: 11px;">
+          <label class="form-label" for="sendTitleInput">Title / Item Name</label>
+          <input type="text" id="sendTitleInput" class="form-input" placeholder="e.g. WiFi Password, Server Credentials">
+        </div>
+
+        <div class="form-group" style="margin-bottom: 11px;">
+          <label class="form-label" for="sendSecretInput">Secret / Password <span style="color:var(--rose);">*</span></label>
+          <textarea id="sendSecretInput" class="form-textarea" rows="3" placeholder="Enter confidential text or password to encrypt..." style="font-family:monospace; font-size:12.5px;"></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 11px;">
+          <div class="form-group">
+            <label class="form-label" for="sendUsernameInput">Username (Optional)</label>
+            <input type="text" id="sendUsernameInput" class="form-input" placeholder="user@example.com">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sendUrlInput">Website URL (Optional)</label>
+            <input type="text" id="sendUrlInput" class="form-input" placeholder="https://...">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 13px;">
+          <label class="form-label" for="sendNotesInput">Notes / Instructions (Optional)</label>
+          <textarea id="sendNotesInput" class="form-textarea" rows="2" placeholder="Additional notes for recipient..."></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+          <div class="form-group">
+            <label class="form-label" for="sendExpirySelect">Link Expiration</label>
+            <select id="sendExpirySelect" class="form-select">
+              <option value="3600">1 Hour</option>
+              <option value="86400" selected>24 Hours (1 Day)</option>
+              <option value="604800">7 Days</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="sendViewsSelect">Max Views</label>
+            <select id="sendViewsSelect" class="form-select">
+              <option value="1" selected>1 View (Self-destruct)</option>
+              <option value="3">3 Views</option>
+              <option value="5">5 Views</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn-primary" style="width:100%; padding:10px;" id="btnCreateSendLink" onclick="generateSendLink()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Generate Encrypted Link</span>
+        </button>
+      </div>
+
+      <!-- Generated Link Result Container -->
+      <div id="sendResultContainer" style="display: none; text-align: left;">
+        <div style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: 12px; color: #86efac; display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>One-Time Link generated and encrypted locally!</span>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label class="form-label">Shareable Link</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="sendGeneratedUrl" class="form-input" readonly style="font-size: 12px; font-family: monospace; color: #38bdf8; background: var(--bg-elevated);" onclick="this.select()">
+            <button class="btn-primary" style="white-space:nowrap; padding: 0 14px;" id="btnCopySendUrl" onclick="copySendLinkUrl()">
+              Copy Link
+            </button>
+          </div>
+        </div>
+
+        <p style="font-size: 11.5px; color: var(--text-muted); line-height: 1.45; margin-top: 10px;">
+          ⚡ <strong>Direct Import:</strong> When the recipient opens this link, they can click <strong>"Save to Au1Password"</strong> to import it straight into their vault.
+        </p>
+
+        <div style="margin-top: 16px; display:flex; justify-content: flex-end;">
+          <button class="btn-secondary" onclick="resetSendModalForm()">Create Another Link</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal 9: Multi-User Authentication & Lock Screen Modal -->
 <div class="modal-overlay active" id="unlockModal">
   <div class="modal-box" style="max-width:390px; text-align:center;">
@@ -3755,6 +3857,7 @@
           inp.value = "";
           inp.focus();
         }
+        if (typeof checkPendingImportFromSend === "function") checkPendingImportFromSend();
       }, 50);
     } else {
       document.body.classList.remove("vault-locked");
@@ -3765,6 +3868,9 @@
       if (unlockModal) {
         unlockModal.classList.remove("active");
         unlockModal.setAttribute("aria-hidden", "true");
+      }
+      if (typeof checkPendingImportFromSend === "function") {
+        setTimeout(checkPendingImportFromSend, 120);
       }
     }
   }
@@ -4946,6 +5052,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             <span class="action-text">Edit</span>
           </button>
+          <button class="btn-secondary btn-responsive-action" onclick="openSendModal('${item.id}')" title="Share One-Time Link (Au1Send)" aria-label="Share One-Time Link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            <span class="action-text">Share Link</span>
+          </button>
           <button class="btn-secondary btn-responsive-action" style="color:var(--rose);" onclick="softDeleteItem('${item.id}')" title="Delete Item" aria-label="Delete Item">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
             <span class="action-text">Delete</span>
@@ -5335,6 +5445,187 @@
     const el = document.getElementById(elId);
     if (!el) return;
     el.textContent = el.textContent.includes("••") ? realVal : "••••••••••••";
+  }
+
+  // ==============================================================================
+  // Au1Send: Ephemeral Encrypted Link Generator & Vault Ingestion
+  // ==============================================================================
+  function openSendModal(itemId = null) {
+    if (isVaultLocked()) {
+      showToast("Vault is locked. Please unlock first.");
+      return;
+    }
+
+    resetSendModalForm();
+
+    if (itemId) {
+      const it = vaultItems.find(i => i.id === itemId);
+      if (it) {
+        document.getElementById("sendTitleInput").value = it.title || "";
+        document.getElementById("sendSecretInput").value = it.password || "";
+        document.getElementById("sendUsernameInput").value = it.username || it.user || "";
+        document.getElementById("sendUrlInput").value = it.url || "";
+        document.getElementById("sendNotesInput").value = it.notes || "";
+      }
+    }
+
+    openModal("sendModal");
+    setTimeout(() => {
+      const secretInput = document.getElementById("sendSecretInput");
+      if (secretInput && !secretInput.value) secretInput.focus();
+    }, 150);
+  }
+
+  function resetSendModalForm() {
+    document.getElementById("sendFormContainer").style.display = "block";
+    document.getElementById("sendResultContainer").style.display = "none";
+    document.getElementById("sendTitleInput").value = "";
+    document.getElementById("sendSecretInput").value = "";
+    document.getElementById("sendUsernameInput").value = "";
+    document.getElementById("sendUrlInput").value = "";
+    document.getElementById("sendNotesInput").value = "";
+    document.getElementById("sendExpirySelect").value = "86400";
+    document.getElementById("sendViewsSelect").value = "1";
+    document.getElementById("sendGeneratedUrl").value = "";
+    const btnCopy = document.getElementById("btnCopySendUrl");
+    if (btnCopy) btnCopy.textContent = "Copy Link";
+  }
+
+  async function generateSendLink() {
+    const secretInput = document.getElementById("sendSecretInput");
+    const secretVal = secretInput.value;
+    if (!secretVal || !secretVal.trim()) {
+      secretInput.focus();
+      showToast("Please enter secret text or password to share.");
+      return;
+    }
+
+    const titleVal = document.getElementById("sendTitleInput").value.trim() || "Shared Secret";
+    const usernameVal = document.getElementById("sendUsernameInput").value.trim();
+    const urlVal = document.getElementById("sendUrlInput").value.trim();
+    const notesVal = document.getElementById("sendNotesInput").value.trim();
+    const expiresSecs = parseInt(document.getElementById("sendExpirySelect").value) || 86400;
+    const maxViews = parseInt(document.getElementById("sendViewsSelect").value) || 1;
+
+    const btn = document.getElementById("btnCreateSendLink");
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `Encrypting & Creating Link...`;
+
+    try {
+      const payloadObj = {
+        title: titleVal,
+        username: usernameVal,
+        password: secretVal,
+        url: urlVal,
+        notes: notesVal
+      };
+      const payloadStr = JSON.stringify(payloadObj);
+
+      // Native WebCrypto AES-256-GCM
+      const cryptoKey = await window.crypto.subtle.generateKey(
+        { name: "AES-GCM", length: 256 },
+        true,
+        ["encrypt", "decrypt"]
+      );
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const encBuffer = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        cryptoKey,
+        new TextEncoder().encode(payloadStr)
+      );
+      const rawKey = await window.crypto.subtle.exportKey("raw", cryptoKey);
+
+      const b64Key = btoa(String.fromCharCode(...new Uint8Array(rawKey)));
+      const b64Iv = btoa(String.fromCharCode(...iv));
+      const b64Ct = btoa(String.fromCharCode(...new Uint8Array(encBuffer)));
+
+      // POST to /api/send/create
+      const res = await fetch("/api/send/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ciphertext: b64Ct,
+          expires_secs: expiresSecs,
+          max_views: maxViews
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create secure link");
+
+      // Construct zero-knowledge URL with fragment (#key=...&iv=...)
+      const fullUrl = `${window.location.origin}/send/${data.send_id}#key=${encodeURIComponent(b64Key)}&iv=${encodeURIComponent(b64Iv)}`;
+
+      document.getElementById("sendFormContainer").style.display = "none";
+      document.getElementById("sendGeneratedUrl").value = fullUrl;
+      document.getElementById("sendResultContainer").style.display = "block";
+      showToast(currentLang === "th" ? "สร้างลิงก์เข้ารหัสสำเร็จ" : "Encrypted One-Time Link generated!");
+    } catch (err) {
+      showToast("Error creating link: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  }
+
+  function copySendLinkUrl() {
+    const input = document.getElementById("sendGeneratedUrl");
+    if (!input || !input.value) return;
+    navigator.clipboard.writeText(input.value);
+    const btn = document.getElementById("btnCopySendUrl");
+    if (btn) {
+      btn.textContent = "Copied!";
+      setTimeout(() => btn.textContent = "Copy Link", 2000);
+    }
+    showToast(currentLang === "th" ? "คัดลอกลิงก์ไปยังคลิปบอร์ดแล้ว" : "Link copied to clipboard!");
+  }
+
+  // Recipient Vault Ingestion from Au1Send
+  function checkPendingImportFromSend() {
+    const raw = localStorage.getItem("au1_pending_import");
+    if (!raw) return;
+
+    if (isVaultLocked()) {
+      let banner = document.getElementById("pendingImportAuthBanner");
+      if (!banner) {
+        banner = document.createElement("div");
+        banner.id = "pendingImportAuthBanner";
+        banner.style.cssText = "width:100%; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.3); border-radius:8px; padding:10px 12px; margin-bottom:14px; font-size:12px; color:#93c5fd; text-align:center; line-height:1.4;";
+        banner.innerHTML = `<strong>📥 Shared Item Received!</strong><br>Sign in or register below to save this item directly into your personal encrypted vault.`;
+        const container = document.getElementById("authStandardContainer");
+        if (container) container.insertBefore(banner, container.firstChild);
+      }
+      return;
+    }
+
+    // Vault is unlocked! Parse and open prefilled modal
+    let item = null;
+    try {
+      item = JSON.parse(raw);
+    } catch (_) {
+      item = { title: "Shared Secret", password: raw };
+    }
+
+    localStorage.removeItem("au1_pending_import");
+    const banner = document.getElementById("pendingImportAuthBanner");
+    if (banner) banner.remove();
+
+    // Clean up URL query if present
+    if (window.location.search.includes("import_send=1")) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+
+    openNewItemModal("login");
+    document.getElementById("itemModalTitle").textContent = "Save Shared Item to Vault";
+    if (item.title) document.getElementById("itemTitleInput").value = item.title;
+    if (item.username) document.getElementById("itemUsernameInput").value = item.username;
+    if (item.password) document.getElementById("itemPasswordInput").value = item.password;
+    if (item.url) document.getElementById("itemUrlInput").value = item.url;
+    if (item.notes) document.getElementById("itemNotesInput").value = item.notes;
+
+    showToast(currentLang === "th" ? "นำเข้าข้อมูลจาก One-Time Link เรียบร้อยแล้ว ตรวจสอบและบันทึกลงคลังได้เลย" : "Loaded item from shared link! Review and click Save Item.");
   }
 
   function openNewItemModal(defaultType = "login") {
@@ -6864,6 +7155,7 @@
     loadSavedTheme();
     initLanguage();
     checkVaultStatus();
+    if (typeof checkPendingImportFromSend === "function") checkPendingImportFromSend();
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get("modal") === "folders") {
       setTimeout(openManageFoldersModal, 300);
