@@ -1,3 +1,13 @@
+---
+title: Au1Password
+emoji: 🔐
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Au1Password
 
 A self-hosted, zero-knowledge password manager and 2FA vault designed for privacy, local control, and browser integration.
@@ -94,6 +104,22 @@ Configuration files:
 - [Dockerfile](file:///home/phongsakorn-ma/orca/workspaces/value-personel/otter/Dockerfile)
 - [docker-compose.yml](file:///home/phongsakorn-ma/orca/workspaces/value-personel/otter/docker-compose.yml)
 - [Caddyfile](file:///home/phongsakorn-ma/orca/workspaces/value-personel/otter/Caddyfile)
+
+---
+
+## Deployment on Hugging Face Spaces
+
+You can host Au1Password for free on Hugging Face Spaces:
+
+1. Create a new Space at [huggingface.co/new-space](https://huggingface.co/new-space).
+2. Select **Docker** (Blank) as the Space SDK.
+3. Choose **Private** visibility so your vault interface remains exclusive to your account.
+4. Add the Hugging Face git remote and push:
+   ```bash
+   git remote add hf https://huggingface.co/spaces/<username>/<space-name>
+   git push hf main
+   ```
+5. Hugging Face builds the Docker container automatically and serves your vault over free HTTPS.
 
 ---
 
