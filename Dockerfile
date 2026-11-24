@@ -30,7 +30,7 @@ ENV AU1_DATA_DIR=/app/data
 
 USER appuser
 
-EXPOSE 7860
+EXPOSE 7860 8765 10000
 
 # Healthcheck to verify local API is alive
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

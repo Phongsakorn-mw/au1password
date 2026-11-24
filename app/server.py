@@ -968,6 +968,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             is_allowed = (
                 "*" in allowed_hosts
                 or host_header in allowed_hosts
+                or host_header.endswith(".onrender.com")
                 or host_header.endswith(".hf.space")
                 or host_header == "huggingface.co"
                 or host_header.endswith(".huggingface.co")
@@ -988,7 +989,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 
         clean_origin = origin.lower()
         if (
-            clean_origin.endswith(".hf.space")
+            clean_origin.endswith(".onrender.com")
+            or clean_origin.endswith(".hf.space")
             or clean_origin == "https://huggingface.co"
             or clean_origin.endswith(".huggingface.co")
         ):
