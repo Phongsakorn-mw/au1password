@@ -162,7 +162,7 @@ class DBWrapper:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if exc_type is None:
+        if not self.is_pg and exc_type is None:
             try:
                 self.conn.commit()
             except Exception:
@@ -183,7 +183,8 @@ class DBWrapper:
             return self.conn.execute(sql, params)
 
     def commit(self):
-        self.conn.commit()
+        if not self.is_pg:
+            self.conn.commit()
 
     def cursor(self):
         return self.conn.cursor()
@@ -197,6 +198,7 @@ def get_db():
             if db_url.startswith("postgres://"):
                 db_url = "postgresql://" + db_url[len("postgres://"):]
             conn = psycopg2.connect(db_url)
+            conn.autocommit = True
             return DBWrapper(conn, is_pg=True)
         except Exception as e:
             sys.stderr.write(f"[DB] PostgreSQL connection notice: {e}, falling back to local SQLite\n")
@@ -206,25 +208,38 @@ def get_db():
 
 def init_db():
     with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY COLLATE NOCASE,
-                salt TEXT,
-                envelope TEXT,
-                created_at REAL,
-                updated_at REAL,
-                totp_secret TEXT,
-                totp_enabled INTEGER DEFAULT 0
-            )
-        """)
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
-        except Exception:
-            pass
-        try:
-            conn.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
-        except Exception:
-            pass
+        if conn.is_pg:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    username VARCHAR(255) PRIMARY KEY,
+                    salt TEXT,
+                    envelope TEXT,
+                    created_at DOUBLE PRECISION,
+                    updated_at DOUBLE PRECISION,
+                    totp_secret TEXT,
+                    totp_enabled INTEGER DEFAULT 0
+                )
+            """)
+        else:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY COLLATE NOCASE,
+                    salt TEXT,
+                    envelope TEXT,
+                    created_at REAL,
+                    updated_at REAL,
+                    totp_secret TEXT,
+                    totp_enabled INTEGER DEFAULT 0
+                )
+            """)
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
+            except Exception:
+                pass
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
 init_db()
 
@@ -1939,8 +1954,20 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": "Payload Too Large: maximum allowed body size is 10MB"}).encode("utf-8"))
             return
 
-        body = json.loads(self.rfile.read(content_len).decode("utf-8")) if content_len > 0 else {}
+        try:
+            body = json.loads(self.rfile.read(content_len).decode("utf-8")) if content_len > 0 else {}
+        except Exception:
+            body = {}
 
+        try:
+            self._handle_post(url, body, origin)
+        except Exception as ex:
+            sys.stderr.write(f"[Server Exception in do_POST] {ex}\n")
+            import traceback
+            traceback.print_exc()
+            self._send_json({"error": f"Database / Server error: {str(ex)}"}, 500, origin)
+
+    def _handle_post(self, url, body, origin):
         if url.path == "/api/send/create":
             ciphertext = body.get("ciphertext")
             expires_secs = int(body.get("expires_secs", 86400))
