@@ -17,6 +17,7 @@ import test_frontend
 import test_deep_backend
 import test_live_browser
 import test_batch_delete
+import test_multi_user
 
 def is_port_open(host="127.0.0.1", port=8765):
     try:
@@ -84,6 +85,12 @@ def main():
         total_passed += p6
         total_failed += f6
         all_errors.extend(errs6)
+
+        # 7. Run Multi-User & Isolated Vaults Tests
+        p7, f7, errs7 = test_multi_user.run_tests()
+        total_passed += p7
+        total_failed += f7
+        all_errors.extend(errs7)
 
     finally:
         if server_proc:

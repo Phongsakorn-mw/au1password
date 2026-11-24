@@ -16,6 +16,8 @@ import uuid
 import socket
 import subprocess
 import tempfile
+import sqlite3
+import re
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -31,6 +33,7 @@ else:
     legacy_dir = Path.home() / ".local" / "share" / "otter-vault"
     DEFAULT_DATA_DIR = legacy_dir if (not new_dir.exists() and legacy_dir.exists()) else new_dir
 
+CURRENT_FORMAT_ID = "au1password-vault-v1"
 DEFAULT_CONFIG_PATH = DEFAULT_DATA_DIR / "config.json"
 DEFAULT_TOKEN_PATH = DEFAULT_DATA_DIR / "token.json"
 DEFAULT_VAULT_PATH = DEFAULT_DATA_DIR / "vault.enc"
@@ -99,6 +102,7 @@ DEFAULT_CONFIG = {
 }
 
 current_session = {
+    "username": None,
     "unlocked": False,
     "derived_key": None,
     "salt": None,
@@ -107,6 +111,26 @@ current_session = {
     "token_created_at": 0,
     "master_password": None
 }
+
+# Multi-User Database & Active Sessions Store
+DB_PATH = DEFAULT_DATA_DIR / "au1password.db"
+active_sessions = {}
+
+def init_db():
+    DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY COLLATE NOCASE,
+                salt TEXT,
+                envelope TEXT,
+                created_at REAL,
+                updated_at REAL
+            )
+        """)
+        conn.commit()
+
+init_db()
 
 ephemeral_sends = {}
 
@@ -1014,17 +1038,22 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         print(f"[Security Alert] Rejected unauthorized cross-origin request from: {origin}")
         return False, ""
 
+    def _extract_token(self) -> str:
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            return auth_header[7:].strip()
+        if "X-Vault-Token" in self.headers:
+            return self.headers.get("X-Vault-Token", "").strip()
+        return ""
+
     def _validate_session_token(self) -> bool:
         """Enforce cryptographic Bearer Session Token for sensitive vault operations."""
+        token = self._extract_token()
+        if token and token in active_sessions and active_sessions[token].get("unlocked"):
+            return True
+
         if not current_session["unlocked"] or not current_session.get("session_token"):
             return False
-
-        auth_header = self.headers.get("Authorization", "")
-        token = None
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:].strip()
-        elif "X-Vault-Token" in self.headers:
-            token = self.headers.get("X-Vault-Token", "").strip()
 
         if not token:
             origin = self.headers.get("Origin", "")
@@ -1033,6 +1062,33 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             return False
 
         return secrets.compare_digest(token, current_session["session_token"])
+
+    def _get_active_session(self) -> dict:
+        token = self._extract_token()
+        if token and token in active_sessions:
+            return active_sessions[token]
+        return current_session
+
+    def _save_session_vault(self, sess: dict, auto_backup: bool = True):
+        username = sess.get("username")
+        cfg = load_config()
+        envelope, _, _ = encrypt_vault(
+            sess["vault"],
+            key=sess["derived_key"],
+            salt=sess["salt"],
+            iterations=cfg["security"]["kdf_iterations"]
+        )
+        if username:
+            init_db()
+            with sqlite3.connect(DB_PATH) as conn:
+                conn.execute(
+                    "UPDATE users SET envelope = ?, updated_at = ? WHERE username = ?",
+                    (json.dumps(envelope), time.time(), username)
+                )
+                conn.commit()
+        else:
+            vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
+            write_envelope_atomically(vault_path, envelope, auto_backup)
 
     def _send_json(self, data, status=200, origin=None):
         self.send_response(status)
@@ -1290,16 +1346,54 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             cfg["gdrive"]["has_drive_scope"] = any(s in ("https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file") for s in token_scopes)
             self._send_json(cfg, 200, origin)
 
+        elif url.path == "/api/auth/me":
+            sess = self._get_active_session()
+            if sess.get("unlocked") and self._validate_session_token():
+                self._send_json({
+                    "authenticated": True,
+                    "username": sess.get("username", "Default User"),
+                    "item_count": len(sess["vault"].get("items", [])) if sess.get("vault") else 0
+                }, 200, origin)
+            else:
+                self._send_json({"authenticated": False}, 200, origin)
+
+        elif url.path in ("/api/auth/logout", "/api/auth/signout"):
+            token = self._extract_token()
+            if token in active_sessions:
+                del active_sessions[token]
+            if current_session.get("session_token") == token:
+                current_session["unlocked"] = False
+                current_session["derived_key"] = None
+                current_session["vault"] = None
+                current_session["session_token"] = None
+                current_session["username"] = None
+            self._send_json({"success": True, "message": "Signed out successfully"}, 200, origin)
+
         elif url.path == "/api/vault/status":
             cfg = load_config()
             vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
             tokens = load_tokens()
             token_scopes = tokens.get("scope", "").split() if tokens else []
             exists = vault_path.exists()
+            sess = self._get_active_session()
+
+            # Check multi-user accounts
+            init_db()
+            user_count = 0
+            try:
+                with sqlite3.connect(DB_PATH) as conn:
+                    c = conn.cursor()
+                    c.execute("SELECT count(*) FROM users")
+                    user_count = c.fetchone()[0]
+            except Exception:
+                pass
+
             status = {
-                "exists": exists,
+                "exists": exists or (user_count > 0),
+                "user_count": user_count,
                 "file_path": str(vault_path),
-                "unlocked": current_session["unlocked"],
+                "unlocked": bool(sess.get("unlocked")),
+                "username": sess.get("username"),
                 "gdrive_connected": bool(tokens and tokens.get("access_token")),
                 "gdrive_email": cfg["gdrive"].get("account_email"),
                 "has_drive_scope": any(s in ("https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/drive.file") for s in token_scopes),
@@ -1315,20 +1409,25 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     status["last_modified"] = env.get("meta", {}).get("last_modified")
                 except Exception:
                     pass
-            if current_session["unlocked"] and origin.startswith("chrome-extension://"):
-                status["session_token"] = current_session.get("session_token")
+            elif sess.get("vault"):
+                status["item_count"] = len(sess["vault"].get("items", []))
+            if sess.get("unlocked") and origin.startswith("chrome-extension://"):
+                status["session_token"] = sess.get("session_token")
             self._send_json(status, 200, origin)
 
         elif url.path == "/api/vault/items":
-            if not current_session["unlocked"]:
-                self._send_json({"error": "Vault is locked"}, 401, origin)
-            elif not self._validate_session_token():
+            if not self._validate_session_token():
                 self._send_json({"error": "Unauthorized: valid session token required"}, 401, origin)
-            else:
-                self._send_json({
-                    "items": current_session["vault"].get("items", []),
-                    "folders": current_session["vault"].get("folders", [])
-                }, 200, origin)
+                return
+            sess = self._get_active_session()
+            if not sess.get("unlocked"):
+                self._send_json({"error": "Vault is locked"}, 401, origin)
+                return
+            self._send_json({
+                "username": sess.get("username"),
+                "items": sess["vault"].get("items", []),
+                "folders": sess["vault"].get("folders", [])
+            }, 200, origin)
 
         elif url.path == "/api/gdrive/status":
             cfg = load_config()
@@ -1934,8 +2033,173 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 "message": f"Successfully imported {count} items into vault."
             })
 
+        elif url.path in ("/api/auth/register", "/api/auth/signup"):
+            username = body.get("username", "").strip()
+            password = body.get("password", "")
+            if not username or len(username) < 3 or len(username) > 32:
+                self._send_json({"error": "Username must be between 3 and 32 characters"}, 400, origin)
+                return
+            if not re.match(r"^[a-zA-Z0-9_\-\.]{3,32}$", username):
+                self._send_json({"error": "Username can only contain letters, numbers, hyphens, and underscores"}, 400, origin)
+                return
+            if not password or len(password) < 4:
+                self._send_json({"error": "Password must be at least 4 characters"}, 400, origin)
+                return
+
+            init_db()
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
+                if cursor.fetchone():
+                    self._send_json({"error": f"Username '{username}' is already taken. Please sign in or choose another name."}, 409, origin)
+                    return
+
+                empty_vault = {
+                    "version": 1,
+                    "items": [],
+                    "folders": ["Personal", "Work", "Finance", "Social"],
+                    "created_at": int(time.time()),
+                    "updated_at": int(time.time())
+                }
+                cfg = load_config()
+                envelope, key, salt = encrypt_vault(
+                    empty_vault,
+                    password=password,
+                    iterations=cfg["security"]["kdf_iterations"]
+                )
+                now = time.time()
+                cursor.execute(
+                    "INSERT INTO users (username, salt, envelope, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                    (username, salt, json.dumps(envelope), now, now)
+                )
+                conn.commit()
+
+            session_token = secrets.token_hex(32)
+            sess = {
+                "username": username,
+                "unlocked": True,
+                "derived_key": key,
+                "salt": salt,
+                "vault": empty_vault,
+                "session_token": session_token,
+                "token_created_at": time.time(),
+                "master_password": None
+            }
+            active_sessions[session_token] = sess
+            current_session.update(sess)
+
+            self._send_json({
+                "success": True,
+                "token": session_token,
+                "session_token": session_token,
+                "username": username,
+                "items": [],
+                "folders": empty_vault["folders"],
+                "message": "User registered and vault created successfully"
+            }, 200, origin)
+
+        elif url.path in ("/api/auth/login", "/api/auth/signin"):
+            username = body.get("username", "").strip()
+            password = body.get("password", "")
+            if not username or not password:
+                self._send_json({"error": "Username and password are required"}, 400, origin)
+                return
+
+            init_db()
+            with sqlite3.connect(DB_PATH) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT username, salt, envelope FROM users WHERE username = ?", (username,))
+                row = cursor.fetchone()
+
+            if not row:
+                self._send_json({"error": "Invalid username or password"}, 401, origin)
+                return
+
+            username_db, salt_db, envelope_str = row
+            try:
+                envelope = json.loads(envelope_str)
+                decrypted, key, salt = decrypt_vault(envelope, password)
+                session_token = secrets.token_hex(32)
+                sess = {
+                    "username": username_db,
+                    "unlocked": True,
+                    "derived_key": key,
+                    "salt": salt,
+                    "vault": decrypted,
+                    "session_token": session_token,
+                    "token_created_at": time.time(),
+                    "master_password": None
+                }
+                active_sessions[session_token] = sess
+                current_session.update(sess)
+
+                self._send_json({
+                    "success": True,
+                    "token": session_token,
+                    "session_token": session_token,
+                    "username": username_db,
+                    "items": decrypted.get("items", []),
+                    "folders": decrypted.get("folders", [])
+                }, 200, origin)
+            except Exception:
+                self._send_json({"error": "Invalid username or password"}, 401, origin)
+
+        elif url.path in ("/api/auth/logout", "/api/auth/signout"):
+            token = self._extract_token()
+            if token in active_sessions:
+                del active_sessions[token]
+            if current_session.get("session_token") == token:
+                current_session["unlocked"] = False
+                current_session["derived_key"] = None
+                current_session["vault"] = None
+                current_session["session_token"] = None
+                current_session["username"] = None
+            self._send_json({"success": True, "message": "Signed out successfully"}, 200, origin)
+
         elif url.path == "/api/vault/init":
+            username = body.get("username", "").strip()
             master_pass = body.get("password")
+            if username:
+                # Delegate to register for named users
+                init_db()
+                with sqlite3.connect(DB_PATH) as conn:
+                    c = conn.cursor()
+                    c.execute("SELECT username FROM users WHERE username = ?", (username,))
+                    if c.fetchone():
+                        self._send_json({"error": f"Username '{username}' already exists"}, 409, origin)
+                        return
+                    empty_vault = {
+                        "version": 1,
+                        "items": [],
+                        "folders": ["Personal", "Work", "Finance", "Social"],
+                        "created_at": int(time.time()),
+                        "updated_at": int(time.time())
+                    }
+                    cfg = load_config()
+                    envelope, key, salt = encrypt_vault(empty_vault, password=master_pass, iterations=cfg["security"]["kdf_iterations"])
+                    now = time.time()
+                    c.execute(
+                        "INSERT INTO users (username, salt, envelope, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                        (username, salt, json.dumps(envelope), now, now)
+                    )
+                    conn.commit()
+
+                session_token = secrets.token_hex(32)
+                sess = {
+                    "username": username,
+                    "unlocked": True,
+                    "derived_key": key,
+                    "salt": salt,
+                    "vault": empty_vault,
+                    "session_token": session_token,
+                    "token_created_at": time.time(),
+                    "master_password": None
+                }
+                active_sessions[session_token] = sess
+                current_session.update(sess)
+                self._send_json({"success": True, "token": session_token, "username": username, "message": "Vault initialized successfully"}, 200, origin)
+                return
+
             if not master_pass:
                 self._send_json({"error": "Master password is required"}, 400, origin)
                 return
@@ -1952,13 +2216,18 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             write_envelope_atomically(vault_path, envelope)
             
             session_token = secrets.token_hex(32)
-            current_session["unlocked"] = True
-            current_session["derived_key"] = key
-            current_session["salt"] = salt
-            current_session["vault"] = empty_vault
-            current_session["session_token"] = session_token
-            current_session["token_created_at"] = time.time()
-            current_session["master_password"] = None
+            sess = {
+                "username": None,
+                "unlocked": True,
+                "derived_key": key,
+                "salt": salt,
+                "vault": empty_vault,
+                "session_token": session_token,
+                "token_created_at": time.time(),
+                "master_password": None
+            }
+            active_sessions[session_token] = sess
+            current_session.update(sess)
 
             self._send_json({"success": True, "token": session_token, "message": "Vault initialized successfully"}, 200, origin)
 
@@ -1971,7 +2240,50 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 }, 429, origin)
                 return
 
+            username = body.get("username", "").strip()
             master_pass = body.get("password")
+            if username:
+                # Delegate to multi-user login
+                init_db()
+                with sqlite3.connect(DB_PATH) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT username, salt, envelope FROM users WHERE username = ?", (username,))
+                    row = cursor.fetchone()
+
+                if not row:
+                    self._send_json({"error": "Invalid username or password"}, 401, origin)
+                    return
+
+                username_db, salt_db, envelope_str = row
+                try:
+                    envelope = json.loads(envelope_str)
+                    decrypted, key, salt = decrypt_vault(envelope, master_pass)
+                    session_token = secrets.token_hex(32)
+                    sess = {
+                        "username": username_db,
+                        "unlocked": True,
+                        "derived_key": key,
+                        "salt": salt,
+                        "vault": decrypted,
+                        "session_token": session_token,
+                        "token_created_at": time.time(),
+                        "master_password": None
+                    }
+                    active_sessions[session_token] = sess
+                    current_session.update(sess)
+
+                    self._send_json({
+                        "success": True,
+                        "token": session_token,
+                        "username": username_db,
+                        "items": decrypted.get("items", []),
+                        "folders": decrypted.get("folders", [])
+                    }, 200, origin)
+                    return
+                except Exception:
+                    self._send_json({"error": "Invalid username or password"}, 401, origin)
+                    return
+
             cfg = load_config()
             vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
             if not vault_path.exists():
@@ -1987,14 +2299,18 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 unlock_rate_limiter["lockout_until"] = 0.0
 
                 session_token = secrets.token_hex(32)
-                current_session["unlocked"] = True
-                current_session["derived_key"] = key
-                current_session["salt"] = salt
-                current_session["vault"] = decrypted
-                current_session["session_token"] = session_token
-                current_session["token_created_at"] = time.time()
-                # Zero master password from Python RAM!
-                current_session["master_password"] = None
+                sess = {
+                    "username": None,
+                    "unlocked": True,
+                    "derived_key": key,
+                    "salt": salt,
+                    "vault": decrypted,
+                    "session_token": session_token,
+                    "token_created_at": time.time(),
+                    "master_password": None
+                }
+                active_sessions[session_token] = sess
+                current_session.update(sess)
 
                 self._send_json({
                     "success": True,
@@ -2012,41 +2328,43 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Invalid master password or corrupted envelope"}, 401, origin)
 
         elif url.path == "/api/vault/lock":
+            token = self._extract_token()
+            if token in active_sessions:
+                del active_sessions[token]
             current_session["unlocked"] = False
             current_session["derived_key"] = None
             current_session["salt"] = None
             current_session["vault"] = None
             current_session["session_token"] = None
             current_session["master_password"] = None
+            current_session["username"] = None
             self._send_json({"success": True, "message": "Vault locked"}, 200, origin)
 
-        elif url.path == "/api/vault/save":
-            if not current_session["unlocked"]:
-                self._send_json({"error": "Vault is locked"}, 401, origin)
-                return
+        elif url.path in ("/api/vault/save", "/api/vault/items"):
             if not self._validate_session_token():
                 self._send_json({"error": "Unauthorized: valid session token required"}, 401, origin)
                 return
+            sess = self._get_active_session()
+            if not sess.get("unlocked"):
+                self._send_json({"error": "Vault is locked"}, 401, origin)
+                return
             items = body.get("items", [])
-            current_session["vault"]["items"] = items
+            sess["vault"]["items"] = items
             if "folders" in body:
-                current_session["vault"]["folders"] = body["folders"]
-            current_session["vault"]["updated_at"] = int(time.time())
+                sess["vault"]["folders"] = body["folders"]
+            sess["vault"]["updated_at"] = int(time.time())
+
+            try:
+                self._save_session_vault(sess)
+            except Exception as e:
+                self._send_json({"error": f"Failed to save vault: {str(e)}"}, 500, origin)
+                return
 
             cfg = load_config()
-            vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
-            envelope, _, _ = encrypt_vault(
-                current_session["vault"],
-                key=current_session["derived_key"],
-                salt=current_session["salt"],
-                iterations=cfg["security"]["kdf_iterations"]
-            )
-            write_envelope_atomically(vault_path, envelope, cfg["vault"]["auto_backup"])
-
-            # Auto sync if enabled and connected
             sync_result = None
-            if cfg["gdrive"]["enabled"] and load_tokens():
+            if not sess.get("username") and cfg["gdrive"]["enabled"] and load_tokens():
                 try:
+                    vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
                     token = gdrive_get_valid_token(cfg)
                     res_meta, action = gdrive_upload_vault(token, vault_path, cfg["gdrive"]["target_folder"])
                     cfg["gdrive"]["last_sync"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -2062,11 +2380,12 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             })
 
         elif url.path == "/api/vault/items/bulk-delete":
-            if not current_session["unlocked"]:
-                self._send_json({"error": "Vault is locked"}, 401, origin)
-                return
             if not self._validate_session_token():
                 self._send_json({"error": "Unauthorized: valid session token required"}, 401, origin)
+                return
+            sess = self._get_active_session()
+            if not sess.get("unlocked"):
+                self._send_json({"error": "Vault is locked"}, 401, origin)
                 return
             item_ids = set(body.get("item_ids", []))
             permanent = bool(body.get("permanent", False))
@@ -2074,7 +2393,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "item_ids array is required"}, 400, origin)
                 return
 
-            vault_items = current_session["vault"].get("items", [])
+            vault_items = sess["vault"].get("items", [])
             affected_count = 0
             if permanent:
                 before_len = len(vault_items)
@@ -2088,23 +2407,20 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                         it["trashed_at"] = now_ts
                         affected_count += 1
 
-            current_session["vault"]["items"] = vault_items
-            current_session["vault"]["updated_at"] = int(time.time())
+            sess["vault"]["items"] = vault_items
+            sess["vault"]["updated_at"] = int(time.time())
+
+            try:
+                self._save_session_vault(sess)
+            except Exception as e:
+                self._send_json({"error": f"Failed to save vault: {str(e)}"}, 500, origin)
+                return
 
             cfg = load_config()
-            vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
-            envelope, _, _ = encrypt_vault(
-                current_session["vault"],
-                key=current_session["derived_key"],
-                salt=current_session["salt"],
-                iterations=cfg["security"]["kdf_iterations"]
-            )
-            write_envelope_atomically(vault_path, envelope, cfg["vault"]["auto_backup"])
-
-            # Auto sync if enabled and connected
             sync_result = None
-            if cfg["gdrive"]["enabled"] and load_tokens():
+            if not sess.get("username") and cfg["gdrive"]["enabled"] and load_tokens():
                 try:
+                    vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
                     token = gdrive_get_valid_token(cfg)
                     res_meta, action = gdrive_upload_vault(token, vault_path, cfg["gdrive"]["target_folder"])
                     cfg["gdrive"]["last_sync"] = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -2122,18 +2438,19 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             }, 200, origin)
 
         elif url.path == "/api/vault/items/bulk-restore":
-            if not current_session["unlocked"]:
-                self._send_json({"error": "Vault is locked"}, 401, origin)
-                return
             if not self._validate_session_token():
                 self._send_json({"error": "Unauthorized: valid session token required"}, 401, origin)
+                return
+            sess = self._get_active_session()
+            if not sess.get("unlocked"):
+                self._send_json({"error": "Vault is locked"}, 401, origin)
                 return
             item_ids = set(body.get("item_ids", []))
             if not item_ids:
                 self._send_json({"error": "item_ids array is required"}, 400, origin)
                 return
 
-            vault_items = current_session["vault"].get("items", [])
+            vault_items = sess["vault"].get("items", [])
             restored_count = 0
             for it in vault_items:
                 if it.get("id") in item_ids:
@@ -2141,18 +2458,20 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     it.pop("trashed_at", None)
                     restored_count += 1
 
-            current_session["vault"]["items"] = vault_items
-            current_session["vault"]["updated_at"] = int(time.time())
+            sess["vault"]["items"] = vault_items
+            sess["vault"]["updated_at"] = int(time.time())
 
-            cfg = load_config()
-            vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
-            envelope, _, _ = encrypt_vault(
-                current_session["vault"],
-                key=current_session["derived_key"],
-                salt=current_session["salt"],
-                iterations=cfg["security"]["kdf_iterations"]
-            )
-            write_envelope_atomically(vault_path, envelope, cfg["vault"]["auto_backup"])
+            try:
+                self._save_session_vault(sess)
+            except Exception as e:
+                self._send_json({"error": f"Failed to save vault: {str(e)}"}, 500, origin)
+                return
+
+            self._send_json({
+                "success": True,
+                "restored_count": restored_count,
+                "total_items": len(vault_items)
+            }, 200, origin)
 
             self._send_json({
                 "success": True,
