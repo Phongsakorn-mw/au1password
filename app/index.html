@@ -5968,34 +5968,59 @@
         headers: getAuthHeaders(),
         body: JSON.stringify({ items: vaultItems, folders: userFolders })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Save failed");
+      if (res.status === 401) {
+        activeSessionToken = null;
+        sessionStorage.removeItem("au1_session_token");
+        setVaultLockedState(true);
+        showToast(currentLang === "th" ? "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่อีกครั้ง" : "Session expired. Please sign in again to save changes.");
+        return false;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const errMsg = data.error || `Save failed (HTTP ${res.status})`;
+        showToast(currentLang === "th" ? `บันทึกไม่สำเร็จ: ${errMsg}` : `Error saving vault: ${errMsg}`);
+        return false;
+      }
+      return true;
     } catch (e) {
       console.error("Save error:", e);
+      showToast(currentLang === "th" ? "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่" : "Network error while saving vault. Please try again.");
+      return false;
     }
   }
 
   async function loadVaultItems() {
-    const res = await fetch("/api/vault/items", {
-      headers: getAuthHeaders()
-    });
-    if (res.ok) {
-      const data = await res.json();
-      vaultItems = data.items || [];
-      if (Array.isArray(data.folders) && data.folders.length > 0) {
-        userFolders = data.folders;
-      } else {
-        const fromItems = new Set(userFolders);
-        vaultItems.forEach(i => { if (i.folder) fromItems.add(i.folder); });
-        userFolders = Array.from(fromItems);
+    try {
+      const res = await fetch("/api/vault/items", {
+        headers: getAuthHeaders()
+      });
+      if (res.status === 401) {
+        activeSessionToken = null;
+        sessionStorage.removeItem("au1_session_token");
+        setVaultLockedState(true);
+        return;
       }
-      updateBadges();
-      renderFoldersList();
-      renderVaultItems();
-      if (vaultItems.length > 0 && !activeItemId) {
-        const first = vaultItems.find(i => !i.trashed && !i.archived) || vaultItems[0];
-        selectItem(first.id);
+      if (res.ok) {
+        const data = await res.json();
+        vaultItems = data.items || [];
+        if (Array.isArray(data.folders) && data.folders.length > 0) {
+          userFolders = data.folders;
+        } else {
+          const fromItems = new Set(userFolders);
+          vaultItems.forEach(i => { if (i.folder) fromItems.add(i.folder); });
+          userFolders = Array.from(fromItems);
+        }
+        updateBadges();
+        renderFoldersList();
+        renderVaultItems();
+        if (vaultItems.length > 0 && !activeItemId) {
+          const first = vaultItems.find(i => !i.trashed && !i.archived) || vaultItems[0];
+          selectItem(first.id);
+        }
       }
+    } catch (e) {
+      console.error("Load vault items error:", e);
+      showToast(currentLang === "th" ? "โหลดข้อมูลคลังไม่สำเร็จ กรุณาลองใหม่" : "Failed to load vault items.");
     }
   }
 
@@ -6344,7 +6369,7 @@
     }
 
     try {
-      const res = await fetch("/api/vault/status");
+      const res = await fetch("/api/vault/status", { headers: getAuthHeaders() });
       const st = await res.json();
       if (st.unlocked && activeSessionToken) {
         const itemRes = await fetch("/api/vault/items", { headers: getAuthHeaders() });
@@ -6368,7 +6393,13 @@
             selectItem(first.id);
           }
           return;
+        } else if (itemRes.status === 401) {
+          activeSessionToken = null;
+          sessionStorage.removeItem("au1_session_token");
         }
+      } else if (activeSessionToken) {
+        activeSessionToken = null;
+        sessionStorage.removeItem("au1_session_token");
       }
       setVaultLockedState(true);
       renderUserBadge();

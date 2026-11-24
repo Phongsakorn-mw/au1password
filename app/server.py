@@ -17,6 +17,7 @@ import socket
 import subprocess
 import tempfile
 import sqlite3
+import threading
 import re
 import hmac
 import hashlib
@@ -24,7 +25,7 @@ import struct
 import urllib.parse
 import urllib.request
 import urllib.error
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 # Paths
@@ -189,104 +190,132 @@ class DBWrapper:
     def cursor(self):
         return self.conn.cursor()
 
+state_lock = threading.RLock()
+_db_lock = threading.RLock()
+_db_initialized = False
+
 def get_db():
     """Returns database connection wrapped in DBWrapper (PostgreSQL if DATABASE_URL is set, else SQLite)."""
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
-        try:
-            import psycopg2
-            if db_url.startswith("postgres://"):
-                db_url = "postgresql://" + db_url[len("postgres://"):]
-            conn = psycopg2.connect(db_url)
-            conn.autocommit = True
-            return DBWrapper(conn, is_pg=True)
-        except Exception as e:
-            sys.stderr.write(f"[DB] PostgreSQL connection notice: {e}, falling back to local SQLite\n")
+        import psycopg2
+        if db_url.startswith("postgres://"):
+            db_url = "postgresql://" + db_url[len("postgres://"):]
+        last_err = None
+        for attempt in range(3):
+            try:
+                conn = psycopg2.connect(db_url, connect_timeout=10)
+                conn.autocommit = True
+                return DBWrapper(conn, is_pg=True)
+            except Exception as e:
+                last_err = e
+                sys.stderr.write(f"[DB] PostgreSQL connect attempt {attempt + 1} failed: {e}\n")
+                time.sleep(0.3 * (attempt + 1))
+        raise RuntimeError(f"PostgreSQL connection failed after retries: {last_err}")
     DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=20.0, check_same_thread=False)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     return DBWrapper(conn, is_pg=False)
 
-def init_db():
-    with get_db() as conn:
-        if conn.is_pg:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    username VARCHAR(255) PRIMARY KEY,
-                    salt TEXT,
-                    envelope TEXT,
-                    created_at DOUBLE PRECISION,
-                    updated_at DOUBLE PRECISION,
-                    totp_secret TEXT,
-                    totp_enabled INTEGER DEFAULT 0
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ephemeral_sends (
-                    send_id VARCHAR(64) PRIMARY KEY,
-                    ciphertext TEXT NOT NULL,
-                    expires_at DOUBLE PRECISION NOT NULL,
-                    views_left INTEGER NOT NULL,
-                    created_at DOUBLE PRECISION NOT NULL
-                )
-            """)
-        else:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    username TEXT PRIMARY KEY COLLATE NOCASE,
-                    salt TEXT,
-                    envelope TEXT,
-                    created_at REAL,
-                    updated_at REAL,
-                    totp_secret TEXT,
-                    totp_enabled INTEGER DEFAULT 0
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS ephemeral_sends (
-                    send_id TEXT PRIMARY KEY,
-                    ciphertext TEXT NOT NULL,
-                    expires_at REAL NOT NULL,
-                    views_left INTEGER NOT NULL,
-                    created_at REAL NOT NULL
-                )
-            """)
-            try:
-                conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
-            except Exception:
-                pass
-            try:
-                conn.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
-            except Exception:
-                pass
+def init_db(force=False):
+    global _db_initialized
+    if _db_initialized and not force:
+        return
+    with _db_lock:
+        if _db_initialized and not force:
+            return
+        with get_db() as conn:
+            if conn.is_pg:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        username VARCHAR(255) PRIMARY KEY,
+                        salt TEXT,
+                        envelope TEXT,
+                        created_at DOUBLE PRECISION,
+                        updated_at DOUBLE PRECISION,
+                        totp_secret TEXT,
+                        totp_enabled INTEGER DEFAULT 0
+                    )
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS ephemeral_sends (
+                        send_id VARCHAR(64) PRIMARY KEY,
+                        ciphertext TEXT NOT NULL,
+                        expires_at DOUBLE PRECISION NOT NULL,
+                        views_left INTEGER NOT NULL,
+                        created_at DOUBLE PRECISION NOT NULL
+                    )
+                """)
+            else:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        username TEXT PRIMARY KEY COLLATE NOCASE,
+                        salt TEXT,
+                        envelope TEXT,
+                        created_at REAL,
+                        updated_at REAL,
+                        totp_secret TEXT,
+                        totp_enabled INTEGER DEFAULT 0
+                    )
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS ephemeral_sends (
+                        send_id TEXT PRIMARY KEY,
+                        ciphertext TEXT NOT NULL,
+                        expires_at REAL NOT NULL,
+                        views_left INTEGER NOT NULL,
+                        created_at REAL NOT NULL
+                    )
+                """)
+                try:
+                    conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
+                except Exception:
+                    pass
+                try:
+                    conn.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
+                except Exception:
+                    pass
+        _db_initialized = True
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    sys.stderr.write(f"[DB] Startup init_db warning (will retry on first request): {e}\n")
 
 def save_ephemeral_send(send_id, ciphertext, expires_at, views_left, created_at):
-    with get_db() as conn:
-        now = time.time()
-        conn.execute("DELETE FROM ephemeral_sends WHERE expires_at < ? OR views_left <= 0", (now,))
-        conn.execute(
-            "INSERT INTO ephemeral_sends (send_id, ciphertext, expires_at, views_left, created_at) VALUES (?, ?, ?, ?, ?)",
-            (send_id, ciphertext, expires_at, views_left, created_at)
-        )
+    init_db()
+    with _db_lock:
+        with get_db() as conn:
+            now = time.time()
+            conn.execute("DELETE FROM ephemeral_sends WHERE expires_at < ? OR views_left <= 0", (now,))
+            conn.execute(
+                "INSERT INTO ephemeral_sends (send_id, ciphertext, expires_at, views_left, created_at) VALUES (?, ?, ?, ?, ?)",
+                (send_id, ciphertext, expires_at, views_left, created_at)
+            )
 
 def get_and_consume_ephemeral_send(send_id):
+    init_db()
     now = time.time()
-    with get_db() as conn:
-        cursor = conn.execute("SELECT ciphertext, expires_at, views_left FROM ephemeral_sends WHERE send_id = ?", (send_id,))
-        row = cursor.fetchone()
-        if not row:
-            return None
-        ciphertext, expires_at, views_left = row[0], row[1], row[2]
-        if now > expires_at or views_left <= 0:
-            conn.execute("DELETE FROM ephemeral_sends WHERE send_id = ?", (send_id,))
-            return {"expired": True}
-        new_views = views_left - 1
-        if new_views <= 0:
-            conn.execute("DELETE FROM ephemeral_sends WHERE send_id = ?", (send_id,))
-        else:
-            conn.execute("UPDATE ephemeral_sends SET views_left = ? WHERE send_id = ?", (new_views, send_id))
-        return {"ciphertext": ciphertext, "views_left": new_views}
+    with _db_lock:
+        with get_db() as conn:
+            cursor = conn.execute("SELECT ciphertext, expires_at, views_left FROM ephemeral_sends WHERE send_id = ?", (send_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            ciphertext, expires_at, views_left = row[0], row[1], row[2]
+            if now > expires_at or views_left <= 0:
+                conn.execute("DELETE FROM ephemeral_sends WHERE send_id = ?", (send_id,))
+                return {"expired": True}
+            new_views = views_left - 1
+            if new_views <= 0:
+                conn.execute("DELETE FROM ephemeral_sends WHERE send_id = ?", (send_id,))
+            else:
+                conn.execute("UPDATE ephemeral_sends SET views_left = ? WHERE send_id = ?", (new_views, send_id))
+            return {"ciphertext": ciphertext, "views_left": new_views}
 
 ephemeral_sends = {}
 
@@ -295,6 +324,53 @@ unlock_rate_limiter = {
     "lockout_until": 0.0,
     "last_attempt": 0.0
 }
+per_key_rate_limiter = {}
+
+def check_rate_limit(key: str) -> int:
+    """Returns remaining lockout seconds (>0) if key is currently rate-limited, else 0."""
+    now = time.time()
+    with state_lock:
+        rec = per_key_rate_limiter.get(key)
+        if not rec:
+            return 0
+        if now < rec.get("lockout_until", 0.0):
+            return int(rec["lockout_until"] - now) + 1
+        return 0
+
+def record_failed_attempt(key: str):
+    now = time.time()
+    with state_lock:
+        if len(per_key_rate_limiter) > 5000:
+            stale = [k for k, v in per_key_rate_limiter.items() if now - v.get("last_attempt", 0) > 3600]
+            for k in stale:
+                per_key_rate_limiter.pop(k, None)
+        rec = per_key_rate_limiter.setdefault(key, {"failed_attempts": 0, "lockout_until": 0.0, "last_attempt": 0.0})
+        if now - rec["last_attempt"] > 900:
+            rec["failed_attempts"] = 0
+        rec["failed_attempts"] += 1
+        rec["last_attempt"] = now
+        attempts = rec["failed_attempts"]
+        if attempts >= 5:
+            penalty = min(300, 2 ** (attempts - 4) * 5)
+            rec["lockout_until"] = now + penalty
+            print(f"[Security Alert] Rate limit triggered for {key} ({attempts} attempts). Locked for {penalty}s.")
+
+def reset_rate_limit(key: str):
+    with state_lock:
+        per_key_rate_limiter.pop(key, None)
+
+def prune_expired_sessions():
+    now = time.time()
+    with state_lock:
+        expired_2fa = [k for k, v in temp_2fa_sessions.items() if v.get("expires_at", 0) < now]
+        for k in expired_2fa:
+            temp_2fa_sessions.pop(k, None)
+        expired_setups = [k for k, v in temp_2fa_setups.items() if v.get("expires_at", 0) < now]
+        for k in expired_setups:
+            temp_2fa_setups.pop(k, None)
+        expired_sess = [k for k, v in active_sessions.items() if now - v.get("token_created_at", now) > 86400]
+        for k in expired_sess:
+            active_sessions.pop(k, None)
 
 def get_local_ip():
     try:
@@ -1103,6 +1179,13 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         "https://localhost:8765"
     }
 
+    def setup(self):
+        super().setup()
+        try:
+            self.connection.settimeout(30)
+        except Exception:
+            pass
+
     def _apply_security_headers(self, origin: str = None):
         """Inject production-grade security headers on all responses."""
         if origin:
@@ -1202,46 +1285,63 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             return self.headers.get("X-Vault-Token", "").strip()
         return ""
 
+    def _is_loopback_host(self) -> bool:
+        host_hdr = self.headers.get("Host", "").split(":")[0].lower()
+        return host_hdr in ("127.0.0.1", "localhost", "::1")
+
     def _validate_session_token(self) -> bool:
         """Enforce cryptographic Bearer Session Token for sensitive vault operations."""
         token = self._extract_token()
-        if token and token in active_sessions and active_sessions[token].get("unlocked"):
-            return True
-
-        if not current_session["unlocked"] or not current_session.get("session_token"):
-            return False
-
-        if not token:
-            origin = self.headers.get("Origin", "")
-            if origin.startswith("chrome-extension://") and current_session["unlocked"]:
+        with state_lock:
+            if token and token in active_sessions and active_sessions[token].get("unlocked"):
                 return True
-            return False
 
-        return secrets.compare_digest(token, current_session["session_token"])
+            if not current_session["unlocked"] or not current_session.get("session_token"):
+                return False
+
+            if not token:
+                origin = self.headers.get("Origin", "")
+                if (
+                    origin.startswith("chrome-extension://")
+                    and self._is_loopback_host()
+                    and current_session["unlocked"]
+                    and not current_session.get("username")
+                ):
+                    return True
+                return False
+
+            return secrets.compare_digest(token, current_session["session_token"])
 
     def _get_active_session(self) -> dict:
         token = self._extract_token()
-        if token and token in active_sessions:
-            return active_sessions[token]
-        return current_session
+        with state_lock:
+            if token and token in active_sessions:
+                return active_sessions[token]
+            if token:
+                return {}
+            if self._is_loopback_host() and not current_session.get("username"):
+                return current_session
+            return {}
 
     def _save_session_vault(self, sess: dict, auto_backup: bool = True):
         username = sess.get("username")
         cfg = load_config()
-        envelope, _, _ = encrypt_vault(
-            sess["vault"],
-            key=sess["derived_key"],
-            salt=sess["salt"],
-            iterations=cfg["security"]["kdf_iterations"]
-        )
+        with state_lock:
+            envelope, _, _ = encrypt_vault(
+                sess["vault"],
+                key=sess["derived_key"],
+                salt=sess["salt"],
+                iterations=cfg["security"]["kdf_iterations"]
+            )
         if username:
             init_db()
-            with get_db() as conn:
-                conn.execute(
-                    "UPDATE users SET envelope = ?, updated_at = ? WHERE username = ?",
-                    (json.dumps(envelope), time.time(), username)
-                )
-                conn.commit()
+            with _db_lock:
+                with get_db() as conn:
+                    conn.execute(
+                        "UPDATE users SET envelope = ?, updated_at = ? WHERE username = ?",
+                        (json.dumps(envelope), time.time(), username)
+                    )
+                    conn.commit()
         else:
             vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
             write_envelope_atomically(vault_path, envelope, auto_backup)
@@ -1801,7 +1901,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     pass
             elif sess.get("vault"):
                 status["item_count"] = len(sess["vault"].get("items", []))
-            if sess.get("unlocked") and origin.startswith("chrome-extension://"):
+            if sess.get("unlocked") and origin.startswith("chrome-extension://") and self._is_loopback_host() and not sess.get("username"):
                 status["session_token"] = sess.get("session_token")
             self._send_json(status, 200, origin)
 
@@ -1934,36 +2034,50 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             }, 200, origin)
 
         elif url.path == "/api/vault/export":
-            if not current_session["unlocked"]:
-                self._send_json({"error": "Vault is locked"}, 401, origin)
-                return
             if not self._validate_session_token():
                 self._send_json({"error": "Unauthorized: valid session token required"}, 401, origin)
                 return
+            sess = self._get_active_session()
+            if not sess.get("unlocked"):
+                self._send_json({"error": "Vault is locked"}, 401, origin)
+                return
             format_type = params.get("format", ["json"])[0]
             if format_type == "encrypted":
-                cfg = load_config()
-                vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
-                if not vault_path.exists():
-                    self._send_json({"error": "No vault file exists"}, 404)
-                    return
-                with open(vault_path, "rb") as f:
-                    data = f.read()
+                username = sess.get("username")
+                if username:
+                    init_db()
+                    with get_db() as conn:
+                        c = conn.execute("SELECT envelope FROM users WHERE username = ?", (username,))
+                        row = c.fetchone()
+                    if not row:
+                        self._send_json({"error": "No vault data found"}, 404, origin)
+                        return
+                    data = row[0].encode("utf-8")
+                else:
+                    cfg = load_config()
+                    vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
+                    if not vault_path.exists():
+                        self._send_json({"error": "No vault file exists"}, 404, origin)
+                        return
+                    with open(vault_path, "rb") as f:
+                        data = f.read()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/octet-stream")
                 self.send_header("Content-Disposition", 'attachment; filename="au1password-backup.enc"')
+                self._apply_security_headers(origin)
                 self.end_headers()
                 self.wfile.write(data)
             else:
                 export_data = {
                     "generator": "Au1Password Pro",
                     "exported_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "items": current_session["vault"].get("items", [])
+                    "items": sess["vault"].get("items", [])
                 }
                 export_bytes = json.dumps(export_data, indent=2).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Disposition", 'attachment; filename="au1password-export.json"')
+                self._apply_security_headers(origin)
                 self.end_headers()
                 self.wfile.write(export_bytes)
 
@@ -2475,6 +2589,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     (username, salt, json.dumps(envelope), now, now)
                 )
 
+            prune_expired_sessions()
             session_token = secrets.token_hex(32)
             sess = {
                 "username": username,
@@ -2486,8 +2601,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 "token_created_at": time.time(),
                 "master_password": None
             }
-            active_sessions[session_token] = sess
-            current_session.update(sess)
+            with state_lock:
+                active_sessions[session_token] = sess
 
             self._send_json({
                 "success": True,
@@ -2507,12 +2622,22 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "Username and password are required"}, 400, origin)
                 return
 
+            rl_key = f"user:{username.lower()}"
+            lock_rem = check_rate_limit(rl_key)
+            if lock_rem > 0:
+                self._send_json({
+                    "error": f"Too many failed login attempts for this account. Retry in {lock_rem}s."
+                }, 429, origin)
+                return
+
+            prune_expired_sessions()
             init_db()
             with get_db() as conn:
                 cursor = conn.execute("SELECT username, salt, envelope, totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
                 row = cursor.fetchone()
 
             if not row:
+                record_failed_attempt(rl_key)
                 self._send_json({"error": "Invalid username or password"}, 401, origin)
                 return
 
@@ -2521,6 +2646,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 envelope = json.loads(envelope_str)
                 decrypted, key, salt = decrypt_vault(envelope, password)
             except Exception:
+                record_failed_attempt(rl_key)
                 self._send_json({"error": "Invalid username or password"}, 401, origin)
                 return
 
@@ -2528,14 +2654,16 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             if totp_enabled and totp_secret:
                 if not totp_code:
                     temp_token = secrets.token_hex(32)
-                    temp_2fa_sessions[temp_token] = {
-                        "username": username_db,
-                        "derived_key": key,
-                        "salt": salt,
-                        "vault": decrypted,
-                        "totp_secret": totp_secret,
-                        "expires_at": time.time() + 300
-                    }
+                    with state_lock:
+                        temp_2fa_sessions[temp_token] = {
+                            "username": username_db,
+                            "derived_key": key,
+                            "salt": salt,
+                            "vault": decrypted,
+                            "totp_secret": totp_secret,
+                            "expires_at": time.time() + 300
+                        }
+                    reset_rate_limit(rl_key)
                     self._send_json({
                         "success": True,
                         "requires_2fa": True,
@@ -2546,9 +2674,11 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     return
 
                 if not verify_totp(totp_secret, totp_code):
+                    record_failed_attempt(rl_key)
                     self._send_json({"error": "Invalid 2FA Authenticator code"}, 401, origin)
                     return
 
+            reset_rate_limit(rl_key)
             session_token = secrets.token_hex(32)
             sess = {
                 "username": username_db,
@@ -2560,8 +2690,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 "token_created_at": time.time(),
                 "master_password": None
             }
-            active_sessions[session_token] = sess
-            current_session.update(sess)
+            with state_lock:
+                active_sessions[session_token] = sess
 
             self._send_json({
                 "success": True,
@@ -2580,19 +2710,18 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 return
 
             now = time.time()
-            sess_2fa = temp_2fa_sessions.get(temp_token)
-            if not sess_2fa or sess_2fa.get("expires_at", 0) < now:
-                if temp_token in temp_2fa_sessions:
-                    del temp_2fa_sessions[temp_token]
-                self._send_json({"error": "2FA session expired. Please sign in again."}, 401, origin)
-                return
+            with state_lock:
+                sess_2fa = temp_2fa_sessions.get(temp_token)
+                if not sess_2fa or sess_2fa.get("expires_at", 0) < now:
+                    temp_2fa_sessions.pop(temp_token, None)
+                    self._send_json({"error": "2FA session expired. Please sign in again."}, 401, origin)
+                    return
 
             if not verify_totp(sess_2fa["totp_secret"], totp_code):
                 self._send_json({"error": "Invalid 2FA Authenticator code"}, 401, origin)
                 return
 
             # Verification success - promote to active session
-            del temp_2fa_sessions[temp_token]
             session_token = secrets.token_hex(32)
             sess = {
                 "username": sess_2fa["username"],
@@ -2604,8 +2733,9 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 "token_created_at": now,
                 "master_password": None
             }
-            active_sessions[session_token] = sess
-            current_session.update(sess)
+            with state_lock:
+                temp_2fa_sessions.pop(temp_token, None)
+                active_sessions[session_token] = sess
 
             self._send_json({
                 "success": True,
@@ -2724,7 +2854,9 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             username = body.get("username", "").strip()
             master_pass = body.get("password")
             if username:
-                # Delegate to register for named users
+                if not master_pass or len(master_pass) < 4:
+                    self._send_json({"error": "Master password must be at least 4 characters"}, 400, origin)
+                    return
                 init_db()
                 with get_db() as conn:
                     c = conn.execute("SELECT username FROM users WHERE username = ?", (username,))
@@ -2741,7 +2873,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     cfg = load_config()
                     envelope, key, salt = encrypt_vault(empty_vault, password=master_pass, iterations=cfg["security"]["kdf_iterations"])
                     now = time.time()
-                    c.execute(
+                    conn.execute(
                         "INSERT INTO users (username, salt, envelope, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                         (username, salt, json.dumps(envelope), now, now)
                     )
@@ -2758,8 +2890,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     "token_created_at": time.time(),
                     "master_password": None
                 }
-                active_sessions[session_token] = sess
-                current_session.update(sess)
+                with state_lock:
+                    active_sessions[session_token] = sess
                 self._send_json({"success": True, "token": session_token, "username": username, "message": "Vault initialized successfully"}, 200, origin)
                 return
 
@@ -2789,62 +2921,103 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 "token_created_at": time.time(),
                 "master_password": None
             }
-            active_sessions[session_token] = sess
-            current_session.update(sess)
+            with state_lock:
+                active_sessions[session_token] = sess
+                current_session.update(sess)
 
             self._send_json({"success": True, "token": session_token, "message": "Vault initialized successfully"}, 200, origin)
 
         elif url.path == "/api/vault/unlock":
             now = time.time()
+            username = body.get("username", "").strip()
+            master_pass = body.get("password")
+            totp_code = str(body.get("totp_code", "")).strip()
+
+            if username:
+                rl_key = f"user:{username.lower()}"
+                lock_rem = check_rate_limit(rl_key)
+                if lock_rem > 0:
+                    self._send_json({
+                        "error": f"Too many failed unlock attempts. Rate limited for security. Retry in {lock_rem}s."
+                    }, 429, origin)
+                    return
+
+                prune_expired_sessions()
+                init_db()
+                with get_db() as conn:
+                    cursor = conn.execute("SELECT username, salt, envelope, totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
+                    row = cursor.fetchone()
+
+                if not row:
+                    record_failed_attempt(rl_key)
+                    self._send_json({"error": "Invalid username or password"}, 401, origin)
+                    return
+
+                username_db, salt_db, envelope_str, totp_secret, totp_enabled = row
+                try:
+                    envelope = json.loads(envelope_str)
+                    decrypted, key, salt = decrypt_vault(envelope, master_pass)
+                except Exception:
+                    record_failed_attempt(rl_key)
+                    self._send_json({"error": "Invalid username or password"}, 401, origin)
+                    return
+
+                if totp_enabled and totp_secret:
+                    if not totp_code:
+                        temp_token = secrets.token_hex(32)
+                        with state_lock:
+                            temp_2fa_sessions[temp_token] = {
+                                "username": username_db,
+                                "derived_key": key,
+                                "salt": salt,
+                                "vault": decrypted,
+                                "totp_secret": totp_secret,
+                                "expires_at": time.time() + 300
+                            }
+                        reset_rate_limit(rl_key)
+                        self._send_json({
+                            "success": True,
+                            "requires_2fa": True,
+                            "temp_token": temp_token,
+                            "username": username_db,
+                            "message": "Two-factor authentication code required"
+                        }, 200, origin)
+                        return
+                    if not verify_totp(totp_secret, totp_code):
+                        record_failed_attempt(rl_key)
+                        self._send_json({"error": "Invalid 2FA Authenticator code"}, 401, origin)
+                        return
+
+                reset_rate_limit(rl_key)
+                session_token = secrets.token_hex(32)
+                sess = {
+                    "username": username_db,
+                    "unlocked": True,
+                    "derived_key": key,
+                    "salt": salt,
+                    "vault": decrypted,
+                    "session_token": session_token,
+                    "token_created_at": time.time(),
+                    "master_password": None
+                }
+                with state_lock:
+                    active_sessions[session_token] = sess
+
+                self._send_json({
+                    "success": True,
+                    "token": session_token,
+                    "username": username_db,
+                    "items": decrypted.get("items", []),
+                    "folders": decrypted.get("folders", [])
+                }, 200, origin)
+                return
+
             if now < unlock_rate_limiter["lockout_until"]:
                 remaining = int(unlock_rate_limiter["lockout_until"] - now) + 1
                 self._send_json({
                     "error": f"Too many failed unlock attempts. Rate limited for security. Retry in {remaining}s."
                 }, 429, origin)
                 return
-
-            username = body.get("username", "").strip()
-            master_pass = body.get("password")
-            if username:
-                # Delegate to multi-user login
-                init_db()
-                with get_db() as conn:
-                    cursor = conn.execute("SELECT username, salt, envelope FROM users WHERE username = ?", (username,))
-                    row = cursor.fetchone()
-
-                if not row:
-                    self._send_json({"error": "Invalid username or password"}, 401, origin)
-                    return
-
-                username_db, salt_db, envelope_str = row
-                try:
-                    envelope = json.loads(envelope_str)
-                    decrypted, key, salt = decrypt_vault(envelope, master_pass)
-                    session_token = secrets.token_hex(32)
-                    sess = {
-                        "username": username_db,
-                        "unlocked": True,
-                        "derived_key": key,
-                        "salt": salt,
-                        "vault": decrypted,
-                        "session_token": session_token,
-                        "token_created_at": time.time(),
-                        "master_password": None
-                    }
-                    active_sessions[session_token] = sess
-                    current_session.update(sess)
-
-                    self._send_json({
-                        "success": True,
-                        "token": session_token,
-                        "username": username_db,
-                        "items": decrypted.get("items", []),
-                        "folders": decrypted.get("folders", [])
-                    }, 200, origin)
-                    return
-                except Exception:
-                    self._send_json({"error": "Invalid username or password"}, 401, origin)
-                    return
 
             cfg = load_config()
             vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
@@ -2871,8 +3044,9 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     "token_created_at": time.time(),
                     "master_password": None
                 }
-                active_sessions[session_token] = sess
-                current_session.update(sess)
+                with state_lock:
+                    active_sessions[session_token] = sess
+                    current_session.update(sess)
 
                 self._send_json({
                     "success": True,
@@ -2891,15 +3065,17 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 
         elif url.path == "/api/vault/lock":
             token = self._extract_token()
-            if token in active_sessions:
-                del active_sessions[token]
-            current_session["unlocked"] = False
-            current_session["derived_key"] = None
-            current_session["salt"] = None
-            current_session["vault"] = None
-            current_session["session_token"] = None
-            current_session["master_password"] = None
-            current_session["username"] = None
+            with state_lock:
+                if token in active_sessions:
+                    del active_sessions[token]
+                if not token or current_session.get("session_token") == token:
+                    current_session["unlocked"] = False
+                    current_session["derived_key"] = None
+                    current_session["salt"] = None
+                    current_session["vault"] = None
+                    current_session["session_token"] = None
+                    current_session["master_password"] = None
+                    current_session["username"] = None
             self._send_json({"success": True, "message": "Vault locked"}, 200, origin)
 
         elif url.path in ("/api/vault/save", "/api/vault/items"):
@@ -3035,45 +3211,71 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 "total_items": len(vault_items)
             }, 200, origin)
 
-            self._send_json({
-                "success": True,
-                "restored_count": restored_count,
-                "total_items": len(vault_items)
-            }, 200, origin)
-
         elif url.path == "/api/vault/change-password":
-            if not current_session["unlocked"]:
-                self._send_json({"error": "Vault is locked"}, 401, origin)
-                return
             if not self._validate_session_token():
                 self._send_json({"error": "Unauthorized: valid session token required"}, 401, origin)
                 return
+            sess = self._get_active_session()
+            if not sess.get("unlocked"):
+                self._send_json({"error": "Vault is locked"}, 401, origin)
+                return
             current_pass = body.get("current_password")
             new_pass = body.get("new_password")
-            if not new_pass:
-                self._send_json({"error": "New password cannot be empty"}, 400, origin)
+            if not new_pass or len(new_pass) < 4:
+                self._send_json({"error": "New password must be at least 4 characters"}, 400, origin)
                 return
 
             cfg = load_config()
-            vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
-            # Verify current password by test-decrypting the existing on-disk envelope
-            try:
-                with open(vault_path, "r", encoding="utf-8") as f:
-                    disk_env = json.load(f)
-                decrypt_vault(disk_env, current_pass)
-            except Exception:
-                self._send_json({"error": "Current password does not match"}, 400, origin)
-                return
+            username = sess.get("username")
+            if username:
+                init_db()
+                with get_db() as conn:
+                    c = conn.execute("SELECT envelope FROM users WHERE username = ?", (username,))
+                    row = c.fetchone()
+                if not row:
+                    self._send_json({"error": "User account not found"}, 404, origin)
+                    return
+                try:
+                    disk_env = json.loads(row[0])
+                    decrypt_vault(disk_env, current_pass)
+                except Exception:
+                    self._send_json({"error": "Current password does not match"}, 400, origin)
+                    return
 
-            envelope, new_key, new_salt = encrypt_vault(
-                current_session["vault"],
-                password=new_pass,
-                iterations=cfg["security"]["kdf_iterations"]
-            )
-            write_envelope_atomically(vault_path, envelope, True)
-            current_session["derived_key"] = new_key
-            current_session["salt"] = new_salt
-            current_session["master_password"] = None
+                envelope, new_key, new_salt = encrypt_vault(
+                    sess["vault"],
+                    password=new_pass,
+                    iterations=cfg["security"]["kdf_iterations"]
+                )
+                with _db_lock:
+                    with get_db() as conn:
+                        conn.execute(
+                            "UPDATE users SET salt = ?, envelope = ?, updated_at = ? WHERE username = ?",
+                            (new_salt, json.dumps(envelope), time.time(), username)
+                        )
+                        conn.commit()
+            else:
+                vault_path = Path(os.path.expanduser(cfg["vault"]["file_path"]))
+                try:
+                    with open(vault_path, "r", encoding="utf-8") as f:
+                        disk_env = json.load(f)
+                    decrypt_vault(disk_env, current_pass)
+                except Exception:
+                    self._send_json({"error": "Current password does not match"}, 400, origin)
+                    return
+
+                envelope, new_key, new_salt = encrypt_vault(
+                    sess["vault"],
+                    password=new_pass,
+                    iterations=cfg["security"]["kdf_iterations"]
+                )
+                write_envelope_atomically(vault_path, envelope, True)
+
+            with state_lock:
+                sess["derived_key"] = new_key
+                sess["salt"] = new_salt
+                sess["master_password"] = None
+                current_session["master_password"] = None
             self._send_json({"success": True, "message": "Master password changed and vault re-encrypted"}, 200, origin)
 
         else:
@@ -3083,10 +3285,14 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 
+class ConcurrentHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+    request_queue_size = 128
+
 def run_server(port=DEFAULT_PORT, host=DEFAULT_HOST):
-    HTTPServer.allow_reuse_address = True
-    server = HTTPServer((host, port), Au1RequestHandler)
-    print(f"[Au1Password] Live server running on http://{host}:{port}")
+    server = ConcurrentHTTPServer((host, port), Au1RequestHandler)
+    print(f"[Au1Password] Live multi-threaded server running on http://{host}:{port}")
     server.serve_forever()
 
 def launch_gtk_window(port=8765):

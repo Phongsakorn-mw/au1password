@@ -93,6 +93,9 @@
           <input type="password" id="popupMasterPass" placeholder="Master Password" autocomplete="current-password" autofocus>
           <button type="submit" class="btn-primary" id="btnPopupUnlock">Unlock</button>
         </div>
+        <div id="popup2faWrapper" style="display: none; margin-top: 8px;">
+          <input type="text" id="popup2faCode" placeholder="6-digit 2FA Authenticator Code" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="width: 100%; box-sizing: border-box; padding: 7px 10px; font-size: 13px; text-align: center; letter-spacing: 3px; font-family: monospace; background: rgba(59,130,246,0.1); border: 1px solid #3b82f6; border-radius: 6px; color: #fff;">
+        </div>
         <div id="popupUnlockError" class="unlock-error" style="display: none;"></div>
         <div style="margin-top: 8px; font-size: 10.5px; color: var(--muted); text-align: center;">
           Server: <span id="currentServerLabel" style="color: #60a5fa;">https://au1password.onrender.com</span>

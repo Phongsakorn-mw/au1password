@@ -15,6 +15,22 @@ async function getServerUrl() {
   return DEFAULT_SERVER_URL;
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetchWithTimeout(url, { ...options, signal: controller.signal });
+    return res;
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("Connection timed out (server may be waking up, please retry)");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 let extensionSessionToken = null;
 
 // Persistent Session Token Manager (Survives MV3 Service Worker Inactivity Termination)
@@ -105,11 +121,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
       // 1. Get Vault Status
       if (request.action === "getStatus") {
-        const res = await fetch(`${serverUrl}/api/vault/status`);
+        const headers = await getAuthHeaders();
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/status`, { headers });
         const data = await res.json();
-        // If daemon is unlocked and returned a session_token, sync it
         if (data && data.unlocked && data.session_token) {
           await setSessionToken(data.session_token);
+        } else if (data && !data.unlocked) {
+          await setSessionToken(null);
         }
         sendResponse({ success: true, data, serverUrl });
         return;
@@ -121,13 +139,42 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.username) payload.username = request.username.trim();
         if (request.totp_code) payload.totp_code = request.totp_code.trim();
 
-        const res = await fetch(`${serverUrl}/api/vault/unlock`, {
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/unlock`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || "Incorrect master password or username");
+        if (data.requires_2fa) {
+          sendResponse({
+            success: true,
+            requires_2fa: true,
+            temp_token: data.temp_token,
+            username: data.username,
+            serverUrl
+          });
+          return;
+        }
+        if (data.token) {
+          await setSessionToken(data.token);
+        }
+        sendResponse({ success: true, data, serverUrl });
+        return;
+      }
+
+      // 2b. Verify 2FA Code
+      if (request.action === "verify2fa") {
+        const res = await fetchWithTimeout(`${serverUrl}/api/auth/2fa/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            temp_token: request.temp_token,
+            totp_code: request.totp_code
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || "Invalid 2FA code");
         if (data.token) {
           await setSessionToken(data.token);
         }
@@ -139,7 +186,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "lock") {
         const headers = await getAuthHeaders({ "Content-Type": "application/json" });
         try {
-          const res = await fetch(`${serverUrl}/api/vault/lock`, {
+          const res = await fetchWithTimeout(`${serverUrl}/api/vault/lock`, {
             method: "POST",
             headers
           });
@@ -156,7 +203,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 4. Get All Vault Items
       if (request.action === "getItems") {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/items`, { headers });
+        if (res.status === 401) {
+          await setSessionToken(null);
+          throw new Error("Vault session expired. Please unlock again.");
+        }
         if (!res.ok) throw new Error("Vault is locked or unavailable");
         const data = await res.json();
         sendResponse({ success: true, items: data.items || [] });
@@ -166,7 +217,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 5. Save Item (Create or Update item & auto-sync to cloud)
       if (request.action === "saveItem") {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault is locked. Unlock before saving.");
         const data = await res.json();
 
@@ -185,7 +236,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const saveHeaders = await getAuthHeaders({ "Content-Type": "application/json" });
-        const saveRes = await fetch(`${serverUrl}/api/vault/save`, {
+        const saveRes = await fetchWithTimeout(`${serverUrl}/api/vault/save`, {
           method: "POST",
           headers: saveHeaders,
           body: JSON.stringify({ items })
@@ -199,7 +250,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 6. Delete Item (Soft-delete or trash & auto-sync)
       if (request.action === "deleteItem") {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault is locked");
         const data = await res.json();
 
@@ -217,7 +268,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const saveHeaders = await getAuthHeaders({ "Content-Type": "application/json" });
-        const delRes = await fetch(`${serverUrl}/api/vault/save`, {
+        const delRes = await fetchWithTimeout(`${serverUrl}/api/vault/save`, {
           method: "POST",
           headers: saveHeaders,
           body: JSON.stringify({ items })
@@ -253,7 +304,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         const headers = await getAuthHeaders();
-        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault locked");
         const data = await res.json();
         const items = data.items || [];
@@ -273,7 +324,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       // 8. Multi-Cloud Sync Status (Google Drive, GitHub, GitLab, SafeHost)
       if (request.action === "getSyncStatus") {
         try {
-          const res = await fetch(`${serverUrl}/api/sync/status`);
+          const res = await fetchWithTimeout(`${serverUrl}/api/sync/status`);
           if (res.ok) {
             const data = await res.json();
             sendResponse({ success: true, data });
@@ -281,7 +332,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           }
         } catch (e) {}
         // Fallback to legacy gdrive status
-        const res = await fetch(`${serverUrl}/api/gdrive/status`);
+        const res = await fetchWithTimeout(`${serverUrl}/api/gdrive/status`);
         const data = await res.json();
         sendResponse({ success: true, data });
         return;
@@ -291,7 +342,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "syncPush") {
         const headers = await getAuthHeaders({ "Content-Type": "application/json" });
         try {
-          const res = await fetch(`${serverUrl}/api/sync/push`, { method: "POST", headers });
+          const res = await fetchWithTimeout(`${serverUrl}/api/sync/push`, { method: "POST", headers });
           const data = await res.json();
           if (res.ok && data.success) {
             sendResponse({ success: true, data });
@@ -302,7 +353,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (!e.message?.includes("404")) throw e;
         }
         // Fallback to gdrive
-        const res = await fetch(`${serverUrl}/api/gdrive/sync-push`, { method: "POST", headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/gdrive/sync-push`, { method: "POST", headers });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         sendResponse({ success: true, data });
@@ -313,7 +364,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "syncPull") {
         const headers = await getAuthHeaders({ "Content-Type": "application/json" });
         try {
-          const res = await fetch(`${serverUrl}/api/sync/pull`, { method: "POST", headers });
+          const res = await fetchWithTimeout(`${serverUrl}/api/sync/pull`, { method: "POST", headers });
           const data = await res.json();
           if (res.ok && data.success) {
             sendResponse({ success: true, data });
@@ -324,7 +375,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           if (!e.message?.includes("404")) throw e;
         }
         // Fallback to gdrive
-        const res = await fetch(`${serverUrl}/api/gdrive/sync-pull`, { method: "POST", headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/gdrive/sync-pull`, { method: "POST", headers });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         sendResponse({ success: true, data });
@@ -359,7 +410,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           return;
         }
         const headers = await getAuthHeaders();
-        const res = await fetch(`${serverUrl}/api/vault/items`, { headers });
+        const res = await fetchWithTimeout(`${serverUrl}/api/vault/items`, { headers });
         if (!res.ok) throw new Error("Vault locked");
         const data = await res.json();
         const items = data.items || [];

@@ -947,6 +947,8 @@ function handleLockVault() {
   }
 }
 
+let pending2faTempToken = null;
+
 // UNLOCK VAULT
 function handlePopupUnlock(e) {
   e.preventDefault();
@@ -957,8 +959,50 @@ function handlePopupUnlock(e) {
     if (disp) username = disp.textContent.trim();
   }
   const passInput = document.getElementById("popupMasterPass");
+  const totpWrap = document.getElementById("popup2faWrapper");
+  const totpInput = document.getElementById("popup2faCode");
   const errEl = document.getElementById("popupUnlockError");
   const btnUnlock = document.getElementById("btnPopupUnlock");
+
+  // Step 2: 2FA Verification if temp token is pending
+  if (pending2faTempToken) {
+    const code = (totpInput ? totpInput.value : "").trim();
+    if (!code) {
+      errEl.textContent = "Please enter the 6-digit 2FA code";
+      errEl.style.display = "block";
+      totpInput?.focus();
+      return;
+    }
+    btnUnlock.textContent = "Verifying…";
+    btnUnlock.disabled = true;
+    errEl.style.display = "none";
+
+    chrome.runtime.sendMessage({ action: "verify2fa", temp_token: pending2faTempToken, totp_code: code }, (res) => {
+      btnUnlock.textContent = "Unlock";
+      btnUnlock.disabled = false;
+      if (res && res.success) {
+        pending2faTempToken = null;
+        if (totpWrap) totpWrap.style.display = "none";
+        if (totpInput) totpInput.value = "";
+        if (username && window.chrome?.storage?.local) {
+          chrome.storage.local.set({ lastUsername: username });
+        }
+        if (typeof window.updateAccountUI === "function") {
+          window.updateAccountUI(username);
+        }
+        passInput.value = "";
+        window._isExplicitlyLocked = false;
+        setExtensionLockedState(false);
+        loadVaultData();
+      } else {
+        errEl.textContent = res?.error || "Invalid 2FA code";
+        errEl.style.display = "block";
+        totpInput?.focus();
+        totpInput?.select();
+      }
+    });
+    return;
+  }
 
   const password = passInput.value;
   passInput.classList.remove("input-error");
@@ -989,12 +1033,26 @@ function handlePopupUnlock(e) {
       btnUnlock.textContent = "Unlock";
       btnUnlock.disabled = false;
 
+      if (res && res.requires_2fa) {
+        pending2faTempToken = res.temp_token;
+        if (totpWrap) totpWrap.style.display = "block";
+        if (totpInput) {
+          totpInput.value = "";
+          totpInput.focus();
+        }
+        errEl.textContent = "2FA enabled: enter your 6-digit Authenticator code and press Unlock.";
+        errEl.style.display = "block";
+        return;
+      }
+
       if (res && res.success) {
+        pending2faTempToken = null;
+        if (totpWrap) totpWrap.style.display = "none";
         if (username && window.chrome?.storage?.local) {
           chrome.storage.local.set({ lastUsername: username });
         }
-        if (typeof updateAccountUI === "function") {
-          updateAccountUI(username);
+        if (typeof window.updateAccountUI === "function") {
+          window.updateAccountUI(username);
         }
         passInput.value = "";
         window._isExplicitlyLocked = false;
@@ -1115,6 +1173,13 @@ function loadVaultData() {
           renderAllItems(document.getElementById("searchInput").value);
           updateHealthMetrics();
           loadSyncStatus(true);
+        } else {
+          const errEl = document.getElementById("popupUnlockError");
+          if (errEl) {
+            errEl.textContent = itemRes?.error || "Vault session expired. Please unlock again.";
+            errEl.style.display = "block";
+          }
+          setExtensionLockedState(true);
         }
       });
     } else {
