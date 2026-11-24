@@ -152,9 +152,60 @@ def verify_totp(secret: str, code: str, window: int = 1) -> bool:
             return True
     return False
 
-def init_db():
+class DBWrapper:
+    """Unified Database Adapter for SQLite and PostgreSQL."""
+    def __init__(self, conn, is_pg=False):
+        self.conn = conn
+        self.is_pg = is_pg
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            try:
+                self.conn.commit()
+            except Exception:
+                pass
+        try:
+            self.conn.close()
+        except Exception:
+            pass
+
+    def execute(self, sql, params=()):
+        if self.is_pg:
+            # PostgreSQL compatibility adjustments
+            sql_pg = sql.replace("?", "%s").replace("COLLATE NOCASE", "")
+            cursor = self.conn.cursor()
+            cursor.execute(sql_pg, params)
+            return cursor
+        else:
+            return self.conn.execute(sql, params)
+
+    def commit(self):
+        self.conn.commit()
+
+    def cursor(self):
+        return self.conn.cursor()
+
+def get_db():
+    """Returns database connection wrapped in DBWrapper (PostgreSQL if DATABASE_URL is set, else SQLite)."""
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        try:
+            import psycopg2
+            if db_url.startswith("postgres://"):
+                db_url = "postgresql://" + db_url[len("postgres://"):]
+            conn = psycopg2.connect(db_url)
+            return DBWrapper(conn, is_pg=True)
+        except Exception as e:
+            sys.stderr.write(f"[DB] PostgreSQL connection notice: {e}, falling back to local SQLite\n")
     DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(DB_PATH) as conn:
+    conn = sqlite3.connect(DB_PATH)
+    return DBWrapper(conn, is_pg=False)
+
+def init_db():
+    with get_db() as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 username TEXT PRIMARY KEY COLLATE NOCASE,
@@ -168,13 +219,12 @@ def init_db():
         """)
         try:
             conn.execute("ALTER TABLE users ADD COLUMN totp_secret TEXT")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
         try:
             conn.execute("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
+        except Exception:
             pass
-        conn.commit()
 
 init_db()
 
@@ -1126,7 +1176,7 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
         )
         if username:
             init_db()
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db() as conn:
                 conn.execute(
                     "UPDATE users SET envelope = ?, updated_at = ? WHERE username = ?",
                     (json.dumps(envelope), time.time(), username)
@@ -1605,9 +1655,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "No user session"}, 401, origin)
                 return
             init_db()
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT totp_enabled FROM users WHERE username = ?", (username,))
+            with get_db() as conn:
+                cursor = conn.execute("SELECT totp_enabled FROM users WHERE username = ?", (username,))
                 row = cursor.fetchone()
                 enabled = bool(row and row[0])
             self._send_json({"success": True, "enabled": enabled, "username": username}, 200, origin)
@@ -1636,9 +1685,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             init_db()
             user_count = 0
             try:
-                with sqlite3.connect(DB_PATH) as conn:
-                    c = conn.cursor()
-                    c.execute("SELECT count(*) FROM users")
+                with get_db() as conn:
+                    c = conn.execute("SELECT count(*) FROM users")
                     user_count = c.fetchone()[0]
             except Exception:
                 pass
@@ -2302,9 +2350,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 return
 
             init_db()
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT username FROM users WHERE username = ?", (username,))
+            with get_db() as conn:
+                cursor = conn.execute("SELECT username FROM users WHERE username = ?", (username,))
                 if cursor.fetchone():
                     self._send_json({"error": f"Username '{username}' is already taken. Please sign in or choose another name."}, 409, origin)
                     return
@@ -2323,11 +2370,10 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                     iterations=cfg["security"]["kdf_iterations"]
                 )
                 now = time.time()
-                cursor.execute(
+                conn.execute(
                     "INSERT INTO users (username, salt, envelope, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
                     (username, salt, json.dumps(envelope), now, now)
                 )
-                conn.commit()
 
             session_token = secrets.token_hex(32)
             sess = {
@@ -2362,9 +2408,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 return
 
             init_db()
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT username, salt, envelope, totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
+            with get_db() as conn:
+                cursor = conn.execute("SELECT username, salt, envelope, totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
                 row = cursor.fetchone()
 
             if not row:
@@ -2515,12 +2560,11 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
 
             init_db()
             now = time.time()
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db() as conn:
                 conn.execute(
                     "UPDATE users SET totp_secret = ?, totp_enabled = 1, updated_at = ? WHERE username = ?",
                     (secret, now, username)
                 )
-                conn.commit()
 
             if username in temp_2fa_setups:
                 del temp_2fa_setups[username]
@@ -2539,9 +2583,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             code = str(body.get("code", "")).strip()
 
             init_db()
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
+            with get_db() as conn:
+                cursor = conn.execute("SELECT totp_secret, totp_enabled FROM users WHERE username = ?", (username,))
                 row = cursor.fetchone()
 
             if not row or not row[0]:
@@ -2554,12 +2597,11 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
                 return
 
             now = time.time()
-            with sqlite3.connect(DB_PATH) as conn:
+            with get_db() as conn:
                 conn.execute(
                     "UPDATE users SET totp_secret = NULL, totp_enabled = 0, updated_at = ? WHERE username = ?",
                     (now, username)
                 )
-                conn.commit()
 
             self._send_json({
                 "success": True,
@@ -2584,9 +2626,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             if username:
                 # Delegate to register for named users
                 init_db()
-                with sqlite3.connect(DB_PATH) as conn:
-                    c = conn.cursor()
-                    c.execute("SELECT username FROM users WHERE username = ?", (username,))
+                with get_db() as conn:
+                    c = conn.execute("SELECT username FROM users WHERE username = ?", (username,))
                     if c.fetchone():
                         self._send_json({"error": f"Username '{username}' already exists"}, 409, origin)
                         return
@@ -2667,9 +2708,8 @@ class Au1RequestHandler(BaseHTTPRequestHandler):
             if username:
                 # Delegate to multi-user login
                 init_db()
-                with sqlite3.connect(DB_PATH) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT username, salt, envelope FROM users WHERE username = ?", (username,))
+                with get_db() as conn:
+                    cursor = conn.execute("SELECT username, salt, envelope FROM users WHERE username = ?", (username,))
                     row = cursor.fetchone()
 
                 if not row:

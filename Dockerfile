@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python cryptographic dependencies
-RUN pip install --no-cache-dir cryptography
+# Install python cryptographic & persistence dependencies (SQLite built-in, PostgreSQL for cloud DB)
+RUN pip install --no-cache-dir cryptography psycopg2-binary
 
 # Set up application and data directories with UID 1000 ownership
 RUN mkdir -p /app/data /data && chown -R appuser:appuser /app /data
