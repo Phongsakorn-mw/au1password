@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Au1Password - Zero-Knowledge Personal Cloud Vault</title>
   <!-- Favicons -->
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' fill='none'%3E%3Crect width='32' height='32' rx='7.5' fill='%230A0D14'/%3E%3Cpath d='M7.5 24.5L15 7.5' stroke='%233B82F6' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M15 7.5V24.5' stroke='%23FFFFFF' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M15 7.5H19.5C22 7.5 24 9.5 24 12C24 14.5 22 16.5 19.5 16.5H15' stroke='%233B82F6' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M11 17.5H15' stroke='%23FFFFFF' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="shortcut icon" href="/favicon.ico">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <style>
@@ -2641,15 +2640,18 @@
           <path d="M11 17.5H15" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
       </div>
-      <h3 style="font-size:17px; font-weight:700;"><span style="color:#3B82F6;">Au1</span>Password Locked</h3>
-      <p style="font-size:12px; color:var(--text-muted); margin:4px 0 16px 0;">Enter master password to decrypt your zero-knowledge vault.</p>
+      <h3 style="font-size:17px; font-weight:700;" id="unlockTitle"><span style="color:#3B82F6;">Au1</span>Password Locked</h3>
+      <p style="font-size:12px; color:var(--text-muted); margin:4px 0 16px 0;" id="unlockSubtitle">Enter master password to decrypt your zero-knowledge vault.</p>
 
       <form onsubmit="handleUnlockForm(event)" style="width:100%;">
         <div class="form-group">
           <input type="password" id="masterPasswordInput" class="form-input" placeholder="Master Password" required style="text-align:center; font-size:14px; padding:10px;">
         </div>
+        <div class="form-group" id="confirmPasswordGroup" style="margin-top:10px; display:none;">
+          <input type="password" id="confirmPasswordInput" class="form-input" placeholder="Confirm Master Password" style="text-align:center; font-size:14px; padding:10px;">
+        </div>
         <div id="unlockError" style="color:var(--rose); font-size:11.5px; margin-top:8px; display:none;"></div>
-        <button type="submit" class="btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px;">
+        <button type="submit" id="btnSubmitUnlock" class="btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px;">
           Unlock Vault
         </button>
       </form>
@@ -5725,6 +5727,7 @@
     try {
       const res = await fetch("/api/vault/status");
       const st = await res.json();
+      updateUnlockModalMode(st.exists === false);
       if (st.unlocked && activeSessionToken) {
         const itemRes = await fetch("/api/vault/items", { headers: getAuthHeaders() });
         if (itemRes.ok) {
@@ -5750,11 +5753,84 @@
     }
   }
 
+  let vaultExists = true;
+
+  function updateUnlockModalMode(isNew) {
+    vaultExists = !isNew;
+    const titleEl = document.getElementById("unlockTitle");
+    const subEl = document.getElementById("unlockSubtitle");
+    const confirmGroup = document.getElementById("confirmPasswordGroup");
+    const btnSubmit = document.getElementById("btnSubmitUnlock");
+    const inputPass = document.getElementById("masterPasswordInput");
+    const confirmPass = document.getElementById("confirmPasswordInput");
+
+    if (isNew) {
+      if (titleEl) titleEl.innerHTML = `<span style="color:#3B82F6;">Au1</span>Password Setup`;
+      if (subEl) subEl.textContent = currentLang === "th" 
+        ? "กำหนดรหัสผ่านหลัก (Master Password) เพื่อสร้างคลังเก็บข้อมูลของคุณ" 
+        : "Create your master password to initialize your zero-knowledge vault.";
+      if (confirmGroup) confirmGroup.style.display = "block";
+      if (confirmPass) confirmPass.required = true;
+      if (inputPass) inputPass.placeholder = currentLang === "th" ? "ตั้งรหัสผ่านหลักใหม่" : "Create Master Password";
+      if (btnSubmit) btnSubmit.textContent = currentLang === "th" ? "สร้างคลังรหัสผ่าน" : "Create Master Vault";
+    } else {
+      if (titleEl) titleEl.innerHTML = `<span style="color:#3B82F6;">Au1</span>Password Locked`;
+      if (subEl) subEl.textContent = currentLang === "th" 
+        ? "กรอกรหัสผ่านหลักเพื่อปลดล็อกและถอดรหัสคลังข้อมูล" 
+        : "Enter master password to decrypt your zero-knowledge vault.";
+      if (confirmGroup) confirmGroup.style.display = "none";
+      if (confirmPass) {
+        confirmPass.required = false;
+        confirmPass.value = "";
+      }
+      if (inputPass) inputPass.placeholder = currentLang === "th" ? "รหัสผ่านหลัก" : "Master Password";
+      if (btnSubmit) btnSubmit.textContent = currentLang === "th" ? "ปลดล็อกคลังรหัสผ่าน" : "Unlock Vault";
+    }
+  }
+
   async function handleUnlockForm(e) {
     e.preventDefault();
     const pass = document.getElementById("masterPasswordInput").value;
+    const confirmEl = document.getElementById("confirmPasswordInput");
     const errEl = document.getElementById("unlockError");
     errEl.style.display = "none";
+
+    if (!vaultExists) {
+      const confirmVal = confirmEl ? confirmEl.value : "";
+      if (pass !== confirmVal) {
+        errEl.textContent = currentLang === "th" ? "รหัสผ่านทั้งสองช่องไม่ตรงกัน" : "Passwords do not match";
+        errEl.style.display = "block";
+        return;
+      }
+      if (pass.length < 4) {
+        errEl.textContent = currentLang === "th" ? "รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร" : "Master password must be at least 4 characters";
+        errEl.style.display = "block";
+        return;
+      }
+      try {
+        const res = await fetch("/api/vault/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pass })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Initialization failed");
+        if (data.token) {
+          activeSessionToken = data.token;
+          sessionStorage.setItem("au1_session_token", data.token);
+        }
+        vaultExists = true;
+        updateUnlockModalMode(false);
+        setVaultLockedState(false);
+        await loadVaultItems();
+        showToast(currentLang === "th" ? "สร้างคลังข้อมูลและปลดล็อกสำเร็จ!" : "Vault Initialized & Unlocked!");
+      } catch (ex) {
+        errEl.textContent = ex.message;
+        errEl.style.display = "block";
+      }
+      return;
+    }
+
     try {
       const res = await fetch("/api/vault/unlock", {
         method: "POST",
@@ -5762,7 +5838,15 @@
         body: JSON.stringify({ password: pass })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Invalid password");
+      if (!res.ok) {
+        if (res.status === 404 || (data.error && data.error.includes("init first"))) {
+          updateUnlockModalMode(true);
+          errEl.textContent = currentLang === "th" ? "ไม่พบคลังข้อมูล กำหนดรหัสผ่านใหม่เพื่อเริ่มใช้งาน" : "No vault found. Please create your master password to begin.";
+          errEl.style.display = "block";
+          return;
+        }
+        throw new Error(data.error || "Invalid password");
+      }
       if (data.token) {
         activeSessionToken = data.token;
         sessionStorage.setItem("au1_session_token", data.token);
